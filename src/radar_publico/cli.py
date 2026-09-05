@@ -185,7 +185,5 @@ def serve_command(
     run_api(host=host, port=port, reload=reload)
 
 
-
-
 if __name__ == "__main__":
     app()
