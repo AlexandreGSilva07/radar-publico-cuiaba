@@ -7,6 +7,7 @@ from uuid import uuid4
 import typer
 
 from radar_publico import __version__
+from radar_publico.agencies import AgencyDirectoryError, enrich_agency_directory
 from radar_publico.api import run as run_api
 from radar_publico.collect import CollectionError, collect
 from radar_publico.coverage import reports, require_valid
@@ -210,6 +211,35 @@ def geocode_command(
         f"attempted={report.attempted} geocoded={report.geocoded} "
         f"missing_coordinates={report.missing_coordinates} failed={report.failed} "
         f"cached={report.cached}"
+    )
+
+
+@app.command("enrich-agencies")
+def enrich_agencies_command(
+    live: bool = typer.Option(False, help="Autoriza leitura do diretório oficial."),
+    limit: int = typer.Option(50, min=1, help="Máximo de páginas de unidade."),
+    max_age_days: int = typer.Option(7, min=0, help="Validade do diretório em cache."),
+    cache_path: Path = typer.Option(Path("data/enrichment.duckdb")),
+) -> None:
+    """Coleta endereços e contatos institucionais publicados pela Prefeitura."""
+    if not live:
+        typer.echo("Diretório de órgãos bloqueado; use --live.", err=True)
+        raise typer.Exit(2)
+    try:
+        with PublicClient() as http:
+            report = enrich_agency_directory(
+                cache_path=cache_path,
+                http=http,
+                limit=limit,
+                max_age_days=max_age_days,
+            )
+    except AgencyDirectoryError as exc:
+        typer.echo(f"Diretório de órgãos falhou: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(
+        f"Diretório de órgãos concluído: discovered={report.discovered} "
+        f"attempted={report.attempted} saved={report.saved} "
+        f"failed={report.failed} cached={report.cached}"
     )
 
 

@@ -65,6 +65,9 @@ class PublicClient:
     def get(self, url: str) -> Response:
         return self._request("GET", url)
 
+    def get_text(self, url: str) -> Response:
+        return self._request("GET", url, expect_json=False)
+
     def post_form(self, url: str, fields: dict[str, str]) -> Response:
         files = {key: (None, value) for key, value in fields.items()}
         return self._request("POST", url, files=files)
@@ -75,6 +78,7 @@ class PublicClient:
         url: str,
         *,
         files: dict[str, tuple[None, str]] | None = None,
+        expect_json: bool = True,
     ) -> Response:
         started = time.monotonic()
         for attempt in range(1, self.attempts + 1):
@@ -92,10 +96,13 @@ class PublicClient:
                 raise self._error("transient", attempt, response.status_code, started)
             if not 200 <= response.status_code < 300:
                 raise self._error("status", attempt, response.status_code, started)
-            try:
-                payload = response.json()
-            except ValueError as exc:
-                raise self._error("json", attempt, response.status_code, started) from exc
+            if expect_json:
+                try:
+                    payload = response.json()
+                except ValueError as exc:
+                    raise self._error("json", attempt, response.status_code, started) from exc
+            else:
+                payload = response.text
             return Response(
                 payload, response.content, response.status_code, attempt, self._elapsed(started)
             )

@@ -330,12 +330,16 @@ def geocode_company_postal_codes(
     connection = duckdb.connect(str(cache_path))
     schema = files("radar_publico").joinpath("migrations/004_enrichment.sql").read_text()
     connection.execute(schema)
+    agency_schema = files("radar_publico").joinpath("migrations/005_agencies.sql").read_text()
+    connection.execute(agency_schema)
     threshold = _now() - timedelta(days=max_age_days)
     candidates = [
         str(row[0])
         for row in connection.execute(
-            "SELECT DISTINCT postal_code FROM company_profile WHERE postal_code IS NOT NULL "
-            "ORDER BY (upper(city) IN ('CUIABA', 'CUIABÁ')) DESC, postal_code"
+            "SELECT DISTINCT postal_code FROM ("
+            "SELECT postal_code FROM company_profile WHERE postal_code IS NOT NULL UNION ALL "
+            "SELECT postal_code FROM agency_directory WHERE postal_code IS NOT NULL"
+            ") ORDER BY postal_code"
         ).fetchall()
     ]
     fresh = {
