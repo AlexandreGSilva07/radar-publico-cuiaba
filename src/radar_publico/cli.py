@@ -9,6 +9,7 @@ import typer
 from radar_publico import __version__
 from radar_publico.collect import CollectionError, collect
 from radar_publico.coverage import reports, require_valid
+from radar_publico.enrich import EnrichmentError, enrich_companies
 from radar_publico.http import HttpError, PublicClient
 from radar_publico.sources import ManifestError, load_manifest
 from radar_publico.state import State, StateError
@@ -142,6 +143,36 @@ def transform_command(
         f"Silver pronta: year={report.year} counts={report.counts} "
         f"rejected={report.rejected} path={report.output_path}"
     )
+
+
+@app.command("enrich")
+def enrich_command(
+    live: bool = typer.Option(False, help="Autoriza consultas à BrasilAPI."),
+    limit: int = typer.Option(20, min=1, help="Máximo de CNPJs consultados nesta execução."),
+    analytics_path: Path = typer.Option(Path("data/analytics.duckdb")),
+    cache_path: Path = typer.Option(Path("data/enrichment.duckdb")),
+) -> None:
+    """Enriquece CNPJs prioritários usando cache local."""
+    if not live:
+        typer.echo("Enriquecimento bloqueado; use --live.", err=True)
+        raise typer.Exit(2)
+    try:
+        with PublicClient() as http:
+            report = enrich_companies(
+                analytics_path=analytics_path,
+                cache_path=cache_path,
+                http=http,
+                limit=limit,
+            )
+    except EnrichmentError as exc:
+        typer.echo(f"Enriquecimento falhou: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(
+        f"Enriquecimento concluído: candidates={report.candidates} "
+        f"attempted={report.attempted} enriched={report.enriched} "
+        f"failed={report.failed} cached={report.cached}"
+    )
+
 
 
 if __name__ == "__main__":
