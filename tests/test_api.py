@@ -20,10 +20,17 @@ def _analytics(path: Path) -> None:
           has_document, source_run_id, source_hash
         ) VALUES (1, 2026, '', 'EM ANDAMENTO', 100, 80, true, 'run', 'hash');
         INSERT INTO silver_contracts(
-          contract_id, year, search_text, document_type, cnpj, status, current_value,
+          contract_id, year, search_text, supplier_name, document_type, cnpj, status, current_value,
           has_document, source_run_id, source_hash
         ) VALUES (
-          2, 2026, '', 'cnpj', '00000000000191', 'Contrato Vigente', 80,
+          2, 2026, '', 'Empresa Teste', 'cnpj', '00000000000191', 'Contrato Vigente', 80,
+          false, 'run', 'hash'
+        );
+        INSERT INTO silver_contracts(
+          contract_id, year, search_text, supplier_name, document_type, cnpj, status, current_value,
+          has_document, source_run_id, source_hash
+        ) VALUES (
+          4, 2026, '', 'Outra Companhia', 'cnpj', '19131243000197', 'Contrato Vigente', 40,
           false, 'run', 'hash'
         );
         INSERT INTO silver_expenses(
@@ -69,9 +76,11 @@ def test_lists_are_paginated_and_filters_are_validated(tmp_path: Path) -> None:
     assert opportunities["total"] == 1
     assert opportunities["items"][0]["status"] == "EM ANDAMENTO"
     contracts = client.get("/api/contracts").json()
-    assert contracts["total"] == 1
+    assert contracts["total"] == 2
     assert "source_hash" not in contracts["items"][0]
-    suppliers = client.get("/api/suppliers", params={"contracted_only": True}).json()
+    suppliers = client.get(
+        "/api/suppliers", params={"contracted_only": True, "q": "Empresa Teste"}
+    ).json()
     assert suppliers["total"] == 1
     assert suppliers["items"][0]["profile"] is None
     assert client.get("/api/contracts", params={"page_size": 101}).status_code == 422

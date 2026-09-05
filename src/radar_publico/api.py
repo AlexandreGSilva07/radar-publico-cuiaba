@@ -201,7 +201,7 @@ def create_app(
         conditions = ["1=1"]
         parameters: list[object] = []
         if q:
-            conditions.append("lower(coalesce(object_text,'')) LIKE ? ESCAPE '\\\\'")
+            conditions.append("lower(coalesce(object_text,'')) LIKE ? ESCAPE '\\'")
             parameters.append(_search_pattern(q))
         if agency:
             conditions.append("agency=?")
@@ -238,8 +238,8 @@ def create_app(
         parameters: list[object] = []
         if q:
             conditions.append(
-                "(lower(coalesce(object_text,'')) LIKE ? ESCAPE '\\\\' OR "
-                "lower(coalesce(supplier_name,'')) LIKE ? ESCAPE '\\\\')"
+                "(lower(coalesce(object_text,'')) LIKE ? ESCAPE '\\' OR "
+                "lower(coalesce(supplier_name,'')) LIKE ? ESCAPE '\\')"
             )
             pattern = _search_pattern(q)
             parameters.extend([pattern, pattern])
@@ -298,7 +298,7 @@ def create_app(
         parameters: list[object] = []
         where = "1=1"
         if q:
-            where = "lower(agency) LIKE ? ESCAPE '\\\\'"
+            where = "lower(agency) LIKE ? ESCAPE '\\'"
             parameters.append(_search_pattern(q))
         try:
             return _paged(
@@ -323,11 +323,16 @@ def create_app(
         conditions = ["1=1"]
         parameters: list[object] = []
         if q:
-            conditions.append(
-                "(lower(coalesce(supplier_name,'')) LIKE ? ESCAPE '\\\\' OR cnpj LIKE ?)"
-            )
             pattern = _search_pattern(q)
-            parameters.extend([pattern, f"%{''.join(filter(str.isdigit, q))}%"])
+            digits = "".join(filter(str.isdigit, q))
+            if digits:
+                conditions.append(
+                    "(lower(coalesce(supplier_name,'')) LIKE ? ESCAPE '\\' OR cnpj LIKE ?)"
+                )
+                parameters.extend([pattern, f"%{digits}%"])
+            else:
+                conditions.append("lower(coalesce(supplier_name,'')) LIKE ? ESCAPE '\\'")
+                parameters.append(pattern)
         if contracted_only:
             conditions.append("contract_count>0")
         where = " AND ".join(conditions)
@@ -358,7 +363,7 @@ def create_app(
         parameters: list[object] = []
         where = "expense_records>0"
         if q:
-            where += " AND lower(coalesce(supplier_name,'')) LIKE ? ESCAPE '\\\\'"
+            where += " AND lower(coalesce(supplier_name,'')) LIKE ? ESCAPE '\\'"
             parameters.append(_search_pattern(q))
         columns = "cnpj, supplier_name, expense_records, committed_value, paid_value"
         try:
