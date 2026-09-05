@@ -38,9 +38,13 @@ def _analytics(path: Path) -> None:
           false, 'run', 'hash'
         );
         INSERT INTO silver_expenses(
-          year, creditor_id, search_text, document_type, committed_value, settled_value,
+          year, creditor_id, creditor_name, search_text, document_type, cpf_masked,
+          committed_value, settled_value,
           paid_value, source_run_id, source_hash
-        ) VALUES (2026, 3, '', 'cpf', 70, 60, 50, 'run', 'hash');
+        ) VALUES (
+          2026, 3, 'Pessoa de Teste', 'pessoa de teste', 'cpf', '***.000.001-**',
+          70, 60, 50, 'run', 'hash'
+        );
         INSERT INTO data_quality VALUES ('contratos', 2026, 1, 1, 0, 0, 0, 0);
         """
     )
@@ -105,6 +109,29 @@ def test_lists_are_paginated_and_filters_are_validated(tmp_path: Path) -> None:
     assert client.get("/api/contracts", params={"page_size": 101}).status_code == 422
 
 
+def test_person_creditors_are_separate_masked_and_not_enriched(tmp_path: Path) -> None:
+    analytics = tmp_path / "analytics.duckdb"
+    _analytics(analytics)
+    client = TestClient(create_app(analytics, tmp_path / "missing-enrichment.duckdb"))
+
+    response = client.get("/api/person-creditors", params={"q": "000001"})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    assert payload["items"][0] == {
+        "creditor_id": 3,
+        "year": 2026,
+        "person_name": "Pessoa de Teste",
+        "cpf_masked": "***.000.001-**",
+        "committed_value": "70.00",
+        "settled_value": "60.00",
+        "paid_value": "50.00",
+        "payment_rate": 71.4,
+    }
+    assert "profile" not in payload["items"][0]
+    assert "00000000191" not in response.text
+
+
 def test_quality_and_pipeline_are_available(tmp_path: Path) -> None:
     analytics = tmp_path / "analytics.duckdb"
     _analytics(analytics)
@@ -130,6 +157,7 @@ def test_analytics_exposes_chart_ready_aggregates(tmp_path: Path) -> None:
     assert data["procurement_modalities"][0]["modality"] == "Pregão eletrônico"
     assert data["top_agencies"][0]["agency"] == "Secretaria Teste"
     assert data["contract_categories"][0]["category"] == "Serviços"
+    assert data["top_person_creditors"][0]["cpf_masked"] == "***.000.001-**"
 
 
 def test_csv_export_is_allowlisted_and_downloadable(tmp_path: Path) -> None:
@@ -143,6 +171,13 @@ def test_csv_export_is_allowlisted_and_downloadable(tmp_path: Path) -> None:
     assert "attachment" in response.headers["content-disposition"]
     assert "source_hash" not in response.text
     assert client.get("/api/export/bronze.csv").status_code == 404
+
+    people = client.get("/api/export/person-creditors.csv")
+    assert people.status_code == 200
+    assert "Pessoa de Teste" in people.text
+    assert "***.000.001-**" in people.text
+    assert "Portal da Transparência de Cuiabá" in people.text
+    assert "00000000191" not in people.text
 
 
 def test_csv_escapes_spreadsheet_formulas() -> None:

@@ -43,6 +43,12 @@ EXPORTS = {
         "SELECT cnpj, supplier_name, expense_records, committed_value, paid_value "
         "FROM gold_suppliers WHERE expense_records>0 ORDER BY paid_value DESC"
     ),
+    "person-creditors": (
+        "SELECT year, creditor_id, person_name, cpf_masked, committed_value, settled_value, "
+        "paid_value, payment_rate, 'Portal da Transparência de Cuiabá' AS source, "
+        f"'{PORTAL_URL}' AS source_url FROM gold_person_creditors "
+        "ORDER BY paid_value DESC, committed_value DESC"
+    ),
 }
 
 ANALYTICS_QUERIES = {
@@ -101,6 +107,11 @@ ANALYTICS_QUERIES = {
         "round(100 * paid_value / nullif(committed_value, 0), 1) AS payment_rate "
         "FROM gold_suppliers WHERE committed_value > 0 "
         "ORDER BY paid_value DESC LIMIT 10"
+    ),
+    "top_person_creditors": (
+        "SELECT creditor_id, year, person_name, cpf_masked, committed_value, settled_value, "
+        "paid_value, payment_rate FROM gold_person_creditors "
+        "ORDER BY paid_value DESC, committed_value DESC LIMIT 10"
     ),
     "open_opportunities_by_agency": (
         "SELECT agency, count(*) AS opportunity_count, "
@@ -224,7 +235,9 @@ def create_app(
 ) -> FastAPI:
     application = FastAPI(
         title="Radar Público Cuiabá API",
-        description="Inteligência comercial derivada de dados públicos municipais.",
+        description=(
+            "Inteligência comercial e controle social derivados de dados públicos municipais."
+        ),
         version=__version__,
         docs_url="/api/docs",
         redoc_url=None,
@@ -449,6 +462,44 @@ def create_app(
                 select_sql=f"SELECT {columns} FROM gold_suppliers WHERE {where} "
                 "ORDER BY paid_value DESC",
                 count_sql=f"SELECT count(*) AS total FROM gold_suppliers WHERE {where}",
+                parameters=parameters,
+                page=page,
+                page_size=page_size,
+            )
+        except (duckdb.Error, FileNotFoundError) as exc:
+            raise HTTPException(status_code=503, detail="analytics database unavailable") from exc
+
+    @application.get("/api/person-creditors")
+    def person_creditors(
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, le=100),
+        q: str | None = Query(None, max_length=100),
+    ) -> dict[str, Any]:
+        conditions = ["1=1"]
+        parameters: list[object] = []
+        if q:
+            pattern = _search_pattern(q)
+            digits = "".join(filter(str.isdigit, q))
+            if digits:
+                conditions.append(
+                    "(person_search LIKE ? ESCAPE '\\' OR "
+                    "regexp_replace(cpf_masked, '[^0-9]', '', 'g') LIKE ?)"
+                )
+                parameters.extend([pattern, f"%{digits}%"])
+            else:
+                conditions.append("person_search LIKE ? ESCAPE '\\'")
+                parameters.append(pattern)
+        where = " AND ".join(conditions)
+        columns = (
+            "creditor_id, year, person_name, cpf_masked, committed_value, settled_value, "
+            "paid_value, payment_rate"
+        )
+        try:
+            return _paged(
+                database,
+                select_sql=f"SELECT {columns} FROM gold_person_creditors WHERE {where} "
+                "ORDER BY paid_value DESC, committed_value DESC, creditor_id",
+                count_sql=f"SELECT count(*) AS total FROM gold_person_creditors WHERE {where}",
                 parameters=parameters,
                 page=page,
                 page_size=page_size,
