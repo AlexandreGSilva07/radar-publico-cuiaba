@@ -21,6 +21,22 @@ SELECT
   (SELECT coalesce(sum(paid_value), 0) FROM silver_expenses) AS paid_value,
   (
     SELECT coalesce(sum(committed_value), 0)
+    FROM silver_expenses WHERE document_type='cnpj'
+  ) AS company_committed_value,
+  (
+    SELECT coalesce(sum(settled_value), 0)
+    FROM silver_expenses WHERE document_type='cnpj'
+  ) AS company_settled_value,
+  (
+    SELECT coalesce(sum(paid_value), 0)
+    FROM silver_expenses WHERE document_type='cnpj'
+  ) AS company_paid_value,
+  (
+    SELECT coalesce(sum(committed_value - paid_value), 0)
+    FROM silver_expenses WHERE document_type='cnpj'
+  ) AS company_committed_balance,
+  (
+    SELECT coalesce(sum(committed_value), 0)
     FROM silver_expenses WHERE document_type='cpf'
   ) AS person_committed_value,
   (

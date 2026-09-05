@@ -33,10 +33,11 @@ def test_gold_views_expose_business_metrics() -> None:
 
     kpis = connection.execute(
         "SELECT open_procurements, procurement_savings, contract_value, committed_balance, "
-        "person_creditor_count, person_paid_value "
+        "person_creditor_count, person_paid_value, company_committed_value, "
+        "company_paid_value, company_committed_balance "
         "FROM gold_kpis"
     ).fetchone()
-    assert kpis == (1, 20, 80, 20, 1, 50)
+    assert kpis == (1, 20, 80, 20, 1, 50, 0, 0, 0)
     assert connection.execute("SELECT relevance_score FROM gold_opportunities").fetchone()[0] == 115
     assert connection.execute("SELECT acceptance_rate FROM gold_quality").fetchone()[0] == 100
     assert connection.execute(
