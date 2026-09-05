@@ -14,6 +14,7 @@ import duckdb
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import Response
+from fastapi.staticfiles import StaticFiles
 
 from radar_publico import __version__
 
@@ -399,9 +400,8 @@ def create_app(
         except (duckdb.Error, FileNotFoundError) as exc:
             raise HTTPException(status_code=503, detail="analytics database unavailable") from exc
 
-    @application.get("/")
-    def root() -> dict[str, str]:
-        return {"product": "Radar Público Cuiabá", "api_docs": "/api/docs"}
+    web_root = Path(__file__).parent / "web"
+    application.mount("/", StaticFiles(directory=web_root, html=True), name="dashboard")
 
     return application
 

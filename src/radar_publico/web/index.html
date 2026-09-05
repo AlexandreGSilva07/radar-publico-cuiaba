@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0a1d2e">
+    <meta name="description" content="Inteligência comercial sobre compras públicas de Cuiabá.">
+    <title>Radar Público Cuiabá</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#content">Ir para o conteúdo</a>
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar">
+        <a class="brand" href="#overview" aria-label="Radar Público — início">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="18"/><circle cx="22" cy="22" r="11"/><path d="M22 22 34 12"/><circle class="brand-dot" cx="34" cy="12" r="3"/></svg>
+          </span>
+          <span><strong>RADAR</strong><small>PÚBLICO · CUIABÁ</small></span>
+        </a>
+
+        <nav class="main-nav" aria-label="Navegação principal">
+          <p class="nav-label">Inteligência</p>
+          <a class="nav-link active" href="#overview" data-view="overview">
+            <span aria-hidden="true">⌂</span> Visão geral
+          </a>
+          <a class="nav-link" href="#opportunities" data-view="opportunities">
+            <span aria-hidden="true">⌁</span> Oportunidades
+            <b class="nav-badge" id="nav-open-count">—</b>
+          </a>
+          <a class="nav-link" href="#contracts" data-view="contracts">
+            <span aria-hidden="true">▤</span> Contratos
+          </a>
+          <a class="nav-link" href="#suppliers" data-view="suppliers">
+            <span aria-hidden="true">◇</span> Fornecedores
+          </a>
+          <a class="nav-link" href="#agencies" data-view="agencies">
+            <span aria-hidden="true">▥</span> Órgãos
+          </a>
+          <a class="nav-link" href="#expenses" data-view="expenses">
+            <span aria-hidden="true">↗</span> Execução financeira
+          </a>
+          <p class="nav-label">Sistema</p>
+          <a class="nav-link" href="#quality" data-view="quality">
+            <span aria-hidden="true">✓</span> Qualidade dos dados
+          </a>
+          <a class="nav-link" href="/api/docs" target="_blank">
+            <span aria-hidden="true">{ }</span> API
+          </a>
+        </nav>
+
+        <div class="source-card">
+          <span class="source-pulse" aria-hidden="true"></span>
+          <div><strong>Fonte oficial</strong><small>Portal da Transparência</small></div>
+          <a id="source-link" href="#" target="_blank" rel="noopener" aria-label="Abrir fonte oficial">↗</a>
+        </div>
+      </aside>
+
+      <main id="content">
+        <header class="topbar">
+          <button class="icon-button menu-button" id="menu-button" aria-label="Abrir menu" aria-controls="sidebar" aria-expanded="false">☰</button>
+          <div class="page-context">
+            <span>RADAR PÚBLICO /</span>
+            <strong id="page-context">VISÃO GERAL</strong>
+          </div>
+          <div class="topbar-actions">
+            <div class="freshness"><span></span><div><small>ÚLTIMA ATUALIZAÇÃO</small><strong id="last-updated">Carregando…</strong></div></div>
+            <button class="button secondary" id="refresh-button" type="button">↻ Atualizar</button>
+            <a class="button primary" id="export-button" href="/api/export/opportunities.csv">⇩ Exportar CSV</a>
+          </div>
+        </header>
+
+        <div class="status-banner loading" id="status-banner" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <span id="status-message">Conectando aos dados locais…</span>
+        </div>
+
+        <section class="view active" id="view-overview" data-title="Visão geral">
+          <div class="hero-heading">
+            <div><p class="eyebrow">PAINEL EXECUTIVO · <span id="dataset-year">2026</span></p><h1>Pulso das compras públicas</h1><p>Transforme dados oficiais em sinais comerciais claros.</p></div>
+            <div class="year-chip"><span>Período analisado</span><strong id="period-label">Ano de 2026</strong></div>
+          </div>
+
+          <div class="kpi-grid">
+            <article class="kpi-card accent"><div class="kpi-top"><span class="kpi-icon">⌁</span><span class="trend positive">AO VIVO</span></div><p>Oportunidades abertas</p><strong id="kpi-open">—</strong><small>processos em andamento</small></article>
+            <article class="kpi-card"><div class="kpi-top"><span class="kpi-icon">▤</span><span class="trend">CONTRATADO</span></div><p>Valor dos contratos</p><strong id="kpi-contracts">—</strong><small id="kpi-contract-count">— contratos analisados</small></article>
+            <article class="kpi-card"><div class="kpi-top"><span class="kpi-icon">↗</span><span class="trend">PAGAMENTOS</span></div><p>Execução financeira</p><strong id="kpi-paid">—</strong><small id="kpi-creditors">— credores consolidados</small></article>
+            <article class="kpi-card"><div class="kpi-top"><span class="kpi-icon">↓</span><span class="trend positive">EFICIÊNCIA</span></div><p>Diferença estimado × homologado</p><strong id="kpi-savings">—</strong><small>nos processos com ambos os valores</small></article>
+          </div>
+
+          <div class="dashboard-grid">
+            <article class="panel span-7">
+              <div class="panel-heading"><div><p class="eyebrow">LICITAÇÕES</p><h2>Funil de processos</h2></div><span class="panel-note">por situação</span></div>
+              <div class="chart" id="pipeline-chart" aria-label="Licitações por situação"></div>
+            </article>
+            <article class="panel span-5">
+              <div class="panel-heading"><div><p class="eyebrow">CONCENTRAÇÃO</p><h2>Órgãos por contratos</h2></div><a href="#agencies" data-go="agencies">Ver todos →</a></div>
+              <div class="rank-list" id="agency-ranking"></div>
+            </article>
+            <article class="panel span-12">
+              <div class="panel-heading"><div><p class="eyebrow">SINAL COMERCIAL</p><h2>Contratos próximos do encerramento</h2></div><a href="/api/export/contracts.csv">Exportar base ↗</a></div>
+              <div class="table-wrap"><table><thead><tr><th>Fornecedor / objeto</th><th>Órgão</th><th>Encerramento</th><th>Dias</th><th class="numeric">Valor atual</th></tr></thead><tbody id="renewals-body"><tr><td colspan="5" class="skeleton-row">Carregando renovações…</td></tr></tbody></table></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" id="view-opportunities" data-title="Oportunidades">
+          <div class="section-heading"><div><p class="eyebrow">PROSPECÇÃO</p><h1>Oportunidades públicas</h1><p>Processos em andamento, paralisados ou em prorrogação.</p></div><div class="metric-pill"><span id="opportunities-total">—</span> oportunidades</div></div>
+          <div class="filter-bar"><label class="search-field">⌕<input id="opportunities-search" type="search" placeholder="Buscar por objeto…"></label><select id="opportunities-status" aria-label="Filtrar situação"><option value="">Todas as situações</option><option>EM ANDAMENTO</option><option>PARALISADO</option><option>PRORROGAÇÃO</option></select><button class="button primary" data-filter="opportunities">Aplicar filtros</button></div>
+          <article class="panel"><div class="table-wrap"><table><thead><tr><th>Oportunidade</th><th>Órgão</th><th>Situação</th><th>Sessão</th><th class="numeric">Valor estimado</th><th>Relevância</th></tr></thead><tbody id="opportunities-body"></tbody></table></div><div class="pagination" id="opportunities-pagination"></div></article>
+        </section>
+
+        <section class="view" id="view-contracts" data-title="Contratos">
+          <div class="section-heading"><div><p class="eyebrow">CARTEIRA PÚBLICA</p><h1>Contratos municipais</h1><p>Valores, vigências, fornecedores e vínculos com licitações.</p></div><div class="metric-pill"><span id="contracts-total">—</span> contratos</div></div>
+          <div class="filter-bar"><label class="search-field">⌕<input id="contracts-search" type="search" placeholder="Objeto ou fornecedor…"></label><select id="contracts-status" aria-label="Filtrar situação"><option value="">Todas as situações</option><option>Contrato Vigente</option><option>Contrato Expirado</option><option>Contrato com Vigência Terminando em 90 dias</option></select><button class="button primary" data-filter="contracts">Aplicar filtros</button></div>
+          <article class="panel"><div class="table-wrap"><table><thead><tr><th>Contrato / objeto</th><th>Fornecedor</th><th>Situação</th><th>Fim</th><th class="numeric">Valor atual</th></tr></thead><tbody id="contracts-body"></tbody></table></div><div class="pagination" id="contracts-pagination"></div></article>
+        </section>
+
+        <section class="view" id="view-suppliers" data-title="Fornecedores">
+          <div class="section-heading"><div><p class="eyebrow">MERCADO</p><h1>Fornecedores</h1><p>Empresas identificadas por CNPJ, contratos e pagamentos agregados.</p></div><div class="metric-pill"><span id="suppliers-total">—</span> CNPJs</div></div>
+          <div class="filter-bar"><label class="search-field">⌕<input id="suppliers-search" type="search" placeholder="Razão social ou CNPJ…"></label><label class="check-field"><input id="contracted-only" type="checkbox"> Somente com contrato</label><button class="button primary" data-filter="suppliers">Aplicar filtros</button></div>
+          <article class="panel"><div class="table-wrap"><table><thead><tr><th>Empresa</th><th>Perfil cadastral</th><th class="numeric">Contratos</th><th class="numeric">Valor contratado</th><th class="numeric">Valor pago</th></tr></thead><tbody id="suppliers-body"></tbody></table></div><div class="pagination" id="suppliers-pagination"></div></article>
+        </section>
+
+        <section class="view" id="view-agencies" data-title="Órgãos">
+          <div class="section-heading"><div><p class="eyebrow">COMPRADORES</p><h1>Órgãos municipais</h1><p>Demanda pública consolidada por unidade compradora.</p></div><div class="metric-pill"><span id="agencies-total">—</span> órgãos</div></div>
+          <div class="filter-bar"><label class="search-field">⌕<input id="agencies-search" type="search" placeholder="Buscar órgão…"></label><button class="button primary" data-filter="agencies">Aplicar filtro</button></div>
+          <article class="panel"><div class="table-wrap"><table><thead><tr><th>Órgão</th><th class="numeric">Licitações</th><th class="numeric">Abertas</th><th class="numeric">Contratos</th><th class="numeric">Valor contratado</th></tr></thead><tbody id="agencies-body"></tbody></table></div><div class="pagination" id="agencies-pagination"></div></article>
+        </section>
+
+        <section class="view" id="view-expenses" data-title="Execução financeira">
+          <div class="section-heading"><div><p class="eyebrow">PAGAMENTOS</p><h1>Execução por empresa</h1><p>Apenas credores com CNPJ válido; pessoas físicas são suprimidas.</p></div><div class="metric-pill"><span id="expenses-total">—</span> empresas</div></div>
+          <div class="filter-bar"><label class="search-field">⌕<input id="expenses-search" type="search" placeholder="Buscar empresa…"></label><button class="button primary" data-filter="expenses">Aplicar filtro</button></div>
+          <article class="panel"><div class="table-wrap"><table><thead><tr><th>Empresa</th><th>CNPJ</th><th class="numeric">Registros</th><th class="numeric">Empenhado</th><th class="numeric">Pago</th><th>Execução</th></tr></thead><tbody id="expenses-body"></tbody></table></div><div class="pagination" id="expenses-pagination"></div></article>
+        </section>
+
+        <section class="view" id="view-quality" data-title="Qualidade dos dados">
+          <div class="section-heading"><div><p class="eyebrow">CONFIANÇA</p><h1>Qualidade e cobertura</h1><p>Veja exatamente o que entrou, foi rejeitado ou protegido no tratamento.</p></div><div class="quality-seal">✓<span>ETL<br><strong>AUDITÁVEL</strong></span></div></div>
+          <div class="quality-grid" id="quality-grid"></div>
+          <article class="panel methodology"><div><p class="eyebrow">METODOLOGIA</p><h2>O que estes indicadores significam</h2><p>As páginas originais são armazenadas com SHA-256. A transformação aceita apenas ciclos integralmente reconciliados, normaliza valores sem ponto flutuante e remove CPFs antes da camada analítica. Duplicatas e registros inválidos ficam contabilizados, sem exposição do conteúdo sensível.</p></div><a href="/api/docs" target="_blank" class="button secondary">Explorar API</a></article>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

@@ -49,6 +49,11 @@ def test_health_metadata_and_summary(tmp_path: Path) -> None:
     assert summary.json()["open_procurements"] == 1
     assert summary.json()["committed_balance"] == "20.00"
 
+    dashboard = client.get("/")
+    assert dashboard.status_code == 200
+    assert "Radar Público Cuiabá" in dashboard.text
+    assert client.get("/styles.css").status_code == 200
+
 
 def test_health_reports_missing_database(tmp_path: Path) -> None:
     client = TestClient(create_app(tmp_path / "missing.duckdb"))
