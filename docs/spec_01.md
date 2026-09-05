@@ -1,8 +1,8 @@
 # SPEC 01 — Radar Público Cuiabá
 
-**Status:** MVP 01 implementado; extensões posteriores permanecem sinalizadas
-**Versão:** 0.1  
-**Data:** 2026-09-04  
+**Status:** MVP 01 implementado e validado; extensões posteriores permanecem sinalizadas
+**Versão:** 0.2
+**Data:** 2026-09-05
 **Produto:** Radar Público Cuiabá
 **Público inicial:** empresas que vendem, ou podem vender, para órgãos públicos em Cuiabá.
 
@@ -32,6 +32,9 @@ Para uma categoria e empresa selecionadas, o usuário consegue:
 4. observar gastos por órgão, fornecedor, objeto e período;
 5. abrir a fonte pública original de cada registro;
 6. saber quando o dado foi coletado e qual a sua cobertura.
+7. cruzar, com um clique, nicho CNAE, cidade, bairro, porte, tipo de organização e situação;
+8. obter contato empresarial e localização com precisão explicitada;
+9. exportar o recorte em CSV ou preparar todas as páginas para PDF.
 
 ## 3. Escopo
 
@@ -44,6 +47,7 @@ Para uma categoria e empresa selecionadas, o usuário consegue:
 | Atas e adesões | identificação, órgão, fornecedor, itens, vigência e situação | compras recorrentes e oportunidades derivadas |
 | Execução financeira | credor, empenho, liquidação, pagamento, órgão, descrição, valores e datas | gasto efetivo e histórico comercial |
 | Cadastro de fornecedores | CNPJ, nome, CNAE, porte, situação cadastral, endereço, matriz/filial | filtros e perfil de empresa |
+| Controle social de pessoas físicas | nome publicado, CPF irreversivelmente mascarado e totais financeiros | transparência separada da análise empresarial |
 | PNCP | contratações e contratos públicos nacionais relacionados a fornecedor/órgão quando disponíveis | perfil competitivo além de Cuiabá |
 | Sanções públicas | ocorrência oficial, origem, vigência e data da consulta | alerta contextual, sem juízo editorial |
 
@@ -78,9 +82,9 @@ Responsável por escolher quais editais e órgãos priorizar. Precisa enxergar r
 1. **Fonte antes de conclusão:** todo indicador deve permitir abrir o registro público de origem.
 2. **Dados brutos imutáveis:** resposta original, horário da coleta, endpoint, parâmetros e hash são preservados.
 3. **Atualização incremental:** não baixar todo o histórico a cada execução.
-4. **CNPJ como chave de empresa:** normalizar apenas CNPJ válido; CPF é contado como suprimido e nunca copiado para Silver/Gold.
+4. **CNPJ como chave empresarial:** somente CNPJ válido participa de vínculo e enriquecimento. Credor pessoa física fica em visão separada, com nome público e CPF mascarado ainda na transformação.
 5. **Sem atribuição especulativa:** relação entre empresas só pode ser afirmada pela mesma raiz CNPJ ou fonte oficial explícita.
-6. **Privacidade por padrão:** não exibir CPF, nome de sócio, telefone ou e-mail de pessoa física.
+6. **Privacidade por padrão:** nunca persistir ou exibir CPF integral, QSA, telefone ou e-mail de pessoa física. Telefones/e-mails cadastrais de pessoa jurídica podem ser exibidos com fonte e data.
 7. **Risco com contexto:** sanção é exibida com fonte, período e situação; nunca como rótulo absoluto da empresa.
 
 ## 6. Fontes de dados
@@ -131,7 +135,9 @@ Detalhes e anexos serão inventariados, porém a coleta de anexos só será ativ
 |---|---|---|
 | BrasilAPI | enriquecimento rápido por CNPJ durante desenvolvimento e para misses | cache local e fila com limite de requisições |
 | Dados abertos da Receita Federal | fonte de produção em lote para empresa, estabelecimento, CNAE e situação | importar recorte dos CNPJs relevantes; não baixar/servir contatos pessoais |
-| ViaCEP/geocodificação opcional | padronização de endereço e mapa | somente após a base CNPJ estar normalizada |
+| BrasilAPI CEP v2 | primeira coordenada por CEP | cache de 180 dias e uso como aproximação de CEP |
+| Nominatim/OpenStreetMap | refinamento opcional por endereço empresarial | execução explícita, serial, cache de 365 dias, no máximo 1 req/s e provedor substituível |
+| IBGE Malhas | limite oficial do município | asset GeoJSON versionado para contexto territorial |
 
 Campos desejados para `empresa` e `estabelecimento`:
 
@@ -142,6 +148,9 @@ Campos desejados para `empresa` e `estabelecimento`:
 - CNAE principal e secundários;
 - porte, natureza jurídica, capital social quando disponível;
 - CEP, município, UF, bairro e endereço normalizado;
+- telefone e e-mail cadastrais do estabelecimento quando publicados;
+- regime tributário mais recente disponível, opção pelo Simples e MEI;
+- coordenada, provedor, data e classe de precisão (`address`, `street`, `postal_code` ou `locality`);
 - data de abertura;
 - fonte e data de atualização.
 
@@ -171,6 +180,7 @@ bronze: JSON bruto, metadados e hash
 silver: tabelas normalizadas, tipadas e deduplicadas
       ↓
 gold: métricas, alertas, busca e views para o dashboard
+      ↘ cache empresarial: perfil CNPJ + CEP + endereço geocodificado
       ↓
 API/dashboard
 ```
@@ -241,11 +251,15 @@ O modelo abaixo orienta a evolução histórica. Para o snapshot MVP, as entidad
 | `fct_liquidacao` | `source_liquidacao_id` | valor liquidado |
 | `fct_pagamento` | `source_pagamento_id` | valor pago |
 | `fct_sancao` | fonte + identificador | sanção, período, situação e origem |
+| `company_profile` | `cnpj` | cadastro, CNAE, contato empresarial, regime e endereço |
+| `company_location` | `postal_code` | fallback geográfico derivado do CEP |
+| `company_address_location` | `cnpj` | coordenada refinada por endereço, precisão e fonte |
+| `gold_person_creditors` | ano + credor | nome público, CPF mascarado e execução financeira de PF |
 
 ### 8.3 Regras de identidade e relacionamento
 
 1. CNPJ deve ter somente dígitos e passar por validação de dígito verificador antes de enriquecer.
-2. Documento de CPF, máscara incompleta ou CNPJ inválido é apenas classificado para qualidade; o valor não sai do Bronze e não entra em Silver, Gold, API ou logs.
+2. CPF integral nunca sai do Bronze. Para controle social, a Silver preserva apenas máscara irreversível no formato `***.000.001-**`, o nome já publicado e valores; essa visão não participa de enriquecimento nem de métricas empresariais.
 3. `cnpj_raiz` é derivado dos oito primeiros dígitos de um CNPJ válido; não substitui o CNPJ do estabelecimento.
 4. Vínculo entre fornecedor do portal e CNPJ recebe `confidence`: `exact`, `normalized_name`, `manual_review` ou `unmatched`.
 5. Dashboard padrão usa somente `exact`; os demais vínculos são revisáveis e não alimentam ranking automaticamente.
@@ -339,10 +353,12 @@ Ordem de resolução:
 Gerar um perfil consolidado:
 
 - histórico de contratos e pagamentos em Cuiabá;
-- CNAEs e localização;
+- CNAEs, setor de mercado, tipo de organização, contato cadastral e localização;
 - grupo de matriz/filial por CNPJ raiz;
 - cobertura PNCP, se habilitada;
 - status cadastral e alertas de sanção quando houver correspondência exata.
+
+Geografia usa duas camadas: BrasilAPI CEP v2 como fallback aproximado e Nominatim como refinamento opcional por endereço. O dashboard deve declarar a precisão de cada ponto e preferir `address`/`street` a `postal_code`. A API pública do Nominatim não entra em rotina diária: somente lote pequeno, explícito, serial e cacheado; operação comercial recorrente exige instância própria ou provedor compatível.
 
 ### 9.6 Fase F — Gold e métricas
 
@@ -386,6 +402,7 @@ Regras devem produzir `segmento`, `confidence` e `rule_version`. Registros sem c
 | Radar de renovação | contratos por janela de vencimento | investigar incumbente e órgão |
 | Órgãos compradores | gasto, volume, categorias e tendência | priorizar conta pública |
 | Fornecedores | ranking e perfil por CNPJ | analisar concorrente/parceiro |
+| Credores PF | nomes publicados, documentos mascarados e pagamentos | controle social sem misturar PF ao mercado PJ |
 | Detalhe de oportunidade | licitação/contrato, itens, fornecedor, execução, fonte | tomar decisão comercial |
 | Qualidade dos dados | data de atualização, cobertura, falhas e ressalvas | confiar corretamente no painel |
 
@@ -401,6 +418,8 @@ Regras devem produzir `segmento`, `confidence` e `rule_version`. Registros sem c
 - porte empresarial quando disponível;
 - fornecedor/CNPJ;
 - termo no objeto.
+- tipo de organização (empresa privada, terceiro setor ou setor público);
+- bairro e ponto geográfico agrupado;
 
 ### 11.3 Indicadores prioritários
 
@@ -426,8 +445,10 @@ Regras devem produzir `segmento`, `confidence` e `rule_version`. Registros sem c
 ### 12.2 Frontend inicial
 
 - dashboard web responsivo;
-- tabelas com ordenação, filtros e paginação;
-- gráficos simples; nenhum gráfico sem tabela ou fonte correspondente;
+- workspace de BI com gráficos, dimensões clicáveis e cross-filter em tempo real;
+- mapa urbano com agrupamento de coordenadas, limite municipal e classe de precisão;
+- tabelas com filtros/paginação onde aplicável e CSV enriquecido;
+- preparação multipágina para impressão/“Salvar como PDF”;
 - URLs compartilháveis com filtros;
 - estado vazio e ressalvas de cobertura claros.
 
@@ -482,6 +503,8 @@ Regras devem produzir `segmento`, `confidence` e `rule_version`. Registros sem c
 
 - credores com totais de empenho, liquidação e pagamento disponibilizados pela fonte;
 - cache CNPJ e perfis de empresa/estabelecimento;
+- telefone/e-mail empresariais, regime tributário e localização em duas precisões;
+- classificação entre empresa privada, terceiro setor e setor público;
 - classificação inicial de objetos;
 - vínculo de fornecedor com CNPJ por confiança.
 
@@ -498,6 +521,8 @@ Regras devem produzir `segmento`, `confidence` e `rule_version`. Registros sem c
 - links de origem;
 - paginação e exportação de recorte;
 - tela de qualidade/cobertura.
+- dimensões clicáveis e recorte conectado entre KPIs, gráficos, mapa e tabela;
+- CSV do conjunto enriquecido e relatório multipágina imprimível em PDF;
 
 **Aceite:** uma empresa do segmento escolhido consegue responder às cinco perguntas da seção 1 em menos de cinco minutos.
 
@@ -604,7 +629,7 @@ O frontend sem build separado é uma decisão de velocidade e confiabilidade do 
 
 - toda linha analítica referencia o run e o hash do objeto Bronze; página, endpoint e horário são resolvidos pelo banco operacional;
 - dinheiro usa `DECIMAL(18,2)`; datas sentinela viram `NULL`;
-- CPF não aparece em Silver, Gold, API, tela, CSV ou log;
+- CPF integral não aparece em Silver, Gold, API, tela, CSV ou log; somente máscara irreversível é permitida na visão de controle social de PF;
 - vínculo empresarial só é `exact` com CNPJ de 14 dígitos e DV válido;
 - vencedor de licitação apenas por nome permanece `unmatched`;
 - contrato só aponta para licitação por identificador oficial existente;
@@ -618,9 +643,11 @@ O dashboard final desta execução contém:
 2. oportunidades de licitação com análise por órgão/modalidade, busca, situação e paginação;
 3. contratos ativos com ritmo mensal, categorias e radar de vencimentos;
 4. órgãos compradores comparados por valores estimado, homologado e contratado;
-5. fornecedores PJ com rankings de carteira e pagamentos, além do enriquecimento cadastral disponível;
+5. organizações PJ com cadastro, telefone/e-mail empresariais, regime, CNAE/nicho, tipo institucional e localização;
 6. despesas pagas por credor CNPJ, incluindo taxa de conversão do empenho em pagamento;
-7. qualidade/proveniência, API JSON e exportação CSV.
+7. controle social de credores PF com nome público e CPF irreversivelmente mascarado;
+8. workspace empresarial com cross-filter por gráfico, filtros, mapa e perfis acionáveis;
+9. qualidade/proveniência, API JSON, CSV enriquecido e relatório multipágina para PDF.
 
 Ao todo são 15 visualizações SVG interativas, renderizadas sem CDN. Títulos derivados de valores são calculados dinamicamente; unidades e recortes aparecem no próprio gráfico. As tabelas ficam depois da leitura analítica, como detalhamento, e o layout é recalculado ao redimensionar a janela.
 
@@ -631,7 +658,7 @@ Ao todo são 15 visualizações SVG interativas, renderizadas sem CDN. Títulos 
 | G0 | instalação, testes, lint e tipagem passam |
 | G1 | endpoints, filtros e paginação validados |
 | G2 | Bronze idempotente e cobertura reconciliada |
-| G3 | Silver tipada, rastreável e sem CPF |
+| G3 | Silver tipada, rastreável e sem CPF integral; PF isolada com máscara irreversível |
 | G4 | Gold reproduzível e sem relação aproximada |
 | G5 | API e dashboard respondem localmente e exibem origem/cobertura |
 
@@ -641,16 +668,19 @@ Cada tarefa coerente recebe testes, commit e push antes da próxima. Dados opera
 
 ## 19. Implementação MVP 01
 
-Status em 4 de setembro de 2026: núcleo funcional entregue.
+Status em 5 de setembro de 2026: núcleo funcional e inteligência empresarial conectada entregues.
 
 - coleta genérica e retomável para contratos, licitações e despesas por credor;
 - cobertura por run e objetos Bronze gzip validados por SHA-256;
 - Silver DuckDB plana e tipada, escolhida para reduzir complexidade prematura do MVP;
 - Gold com KPIs, oportunidades, vencimentos, órgãos, fornecedores, execução PJ e qualidade;
-- cache BrasilAPI separado, seletivo e não bloqueante;
+- cache BrasilAPI separado, seletivo e não bloqueante, com cadastro, contato empresarial e regime;
+- geocodificação cacheada em duas camadas, com precisão e fonte explícitas;
 - FastAPI somente leitura, filtros parametrizados, paginação e CSV com allowlist;
 - dashboard de BI local sem dependências CDN, responsivo e validado em desktop/mobile com Playwright;
-- `refresh` executa a cadeia integral depois dos gates de cobertura;
+- cross-filter instantâneo entre tipo, nicho, cidade, bairro, porte, situação, KPIs, gráficos, mapa e tabela;
+- PDF multipágina via impressão do navegador e CSV empresarial enriquecido;
+- `refresh` executa coleta, cobertura, Silver/Gold, enriquecimento CNPJ e CEP depois dos gates;
 - Docker Compose e CI reproduzível; dados reais permanecem fora do Git.
 
 O snapshot inicial identificou 14 IDs de contrato repetidos entre páginas da própria fonte. Eles são contabilizados como rejeição de chave natural e não duplicam métricas. A licitação de cabeçalho continua sem CNPJ de vencedor; portanto, nenhum match por nome alimenta os indicadores empresariais.
