@@ -256,6 +256,7 @@ def refresh_command(
     year: int = typer.Option(...),
     live: bool = typer.Option(False, help="Autoriza coleta e enriquecimento externos."),
     enrichment_limit: int = typer.Option(20, min=0),
+    geocoding_limit: int = typer.Option(50, min=0),
     cycle_id: str | None = typer.Option(None),
     ops_path: Path = typer.Option(Path("data/ops.duckdb")),
     bronze_path: Path = typer.Option(Path("data/bronze")),
@@ -274,6 +275,7 @@ def refresh_command(
             analytics_path=analytics_path,
             enrichment_path=enrichment_path,
             enrichment_limit=enrichment_limit,
+            geocoding_limit=geocoding_limit,
             cycle_id=cycle_id,
         )
     except (
@@ -292,7 +294,9 @@ def refresh_command(
     typer.echo(
         f"Atualização concluída: cycle={report.cycle_id} year={year} "
         f"collections={{{collection_counts}}} "
-        f"silver={report.analytics.counts}"
+        f"silver={report.analytics.counts} "
+        f"enriched={report.enrichment.enriched if report.enrichment else 0} "
+        f"geocoded={report.geocoding.geocoded if report.geocoding else 0}"
     )
 
 

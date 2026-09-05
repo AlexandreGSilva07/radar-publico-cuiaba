@@ -69,6 +69,7 @@ def test_refresh_collects_all_sources_before_transforming(tmp_path: Path) -> Non
             analytics_path=tmp_path / "analytics.duckdb",
             enrichment_path=tmp_path / "enrichment.duckdb",
             enrichment_limit=0,
+            geocoding_limit=0,
             cycle_id="integration-test",
             http=http,
         )

@@ -8,7 +8,12 @@ from uuid import uuid4
 
 from radar_publico.collect import Report, collect
 from radar_publico.coverage import require_valid
-from radar_publico.enrich import EnrichmentReport, enrich_companies
+from radar_publico.enrich import (
+    EnrichmentReport,
+    GeocodingReport,
+    enrich_companies,
+    geocode_company_postal_codes,
+)
 from radar_publico.http import PublicClient
 from radar_publico.sources import load_manifest
 from radar_publico.state import State
@@ -21,6 +26,7 @@ class RefreshReport:
     collections: tuple[Report, ...]
     analytics: BuildReport
     enrichment: EnrichmentReport | None
+    geocoding: GeocodingReport | None
 
 
 def refresh(
@@ -31,12 +37,13 @@ def refresh(
     analytics_path: Path,
     enrichment_path: Path,
     enrichment_limit: int = 20,
+    geocoding_limit: int = 50,
     cycle_id: str | None = None,
     http: PublicClient | None = None,
 ) -> RefreshReport:
     """Executa a cadeia completa; transformação só ocorre após cobertura válida."""
-    if enrichment_limit < 0:
-        raise ValueError("enrichment_limit não pode ser negativo")
+    if enrichment_limit < 0 or geocoding_limit < 0:
+        raise ValueError("limites de enriquecimento não podem ser negativos")
     manifest = load_manifest()
     active_cycle = cycle_id or f"refresh-{year}-{uuid4()}"
     client = http or PublicClient()
@@ -72,7 +79,16 @@ def refresh(
             if enrichment_limit
             else None
         )
+        geocoding = (
+            geocode_company_postal_codes(
+                cache_path=enrichment_path,
+                http=client,
+                limit=geocoding_limit,
+            )
+            if geocoding_limit
+            else None
+        )
     finally:
         if owns_client:
             client.__exit__()
-    return RefreshReport(active_cycle, tuple(collections), analytics, enrichment)
+    return RefreshReport(active_cycle, tuple(collections), analytics, enrichment, geocoding)
