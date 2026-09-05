@@ -1,4 +1,4 @@
-"""Enriquecimento empresarial seletivo, cacheado e sem dados de contato/QSA."""
+"""Enriquecimento empresarial e geográfico seletivo, cacheado e sem QSA."""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from radar_publico.http import HttpError, PublicClient
 from radar_publico.normalize import NormalizeError, source_date, text, valid_cnpj
 
 BRASIL_API_CNPJ = "https://brasilapi.com.br/api/cnpj/v1"
+BRASIL_API_CEP = "https://brasilapi.com.br/api/cep/v2"
 
 
 class EnrichmentError(RuntimeError):
@@ -28,6 +29,16 @@ class EnrichmentReport:
     candidates: int
     attempted: int
     enriched: int
+    failed: int
+    cached: int
+
+
+@dataclass(frozen=True)
+class GeocodingReport:
+    candidates: int
+    attempted: int
+    geocoded: int
+    missing_coordinates: int
     failed: int
     cached: int
 
@@ -60,6 +71,50 @@ def _cnae_json(value: object) -> str:
     return json.dumps(allowed, ensure_ascii=False, separators=(",", ":"))
 
 
+def _phone(value: object) -> str | None:
+    digits = "".join(character for character in str(value or "") if character.isdigit())
+    return digits if len(digits) in {10, 11} else None
+
+
+def _email(value: object) -> str | None:
+    result = text(value)
+    return result.casefold() if result and "@" in result else None
+
+
+def _postal_code(value: object) -> str | None:
+    digits = "".join(character for character in str(value or "") if character.isdigit())
+    if not digits or len(digits) > 8:
+        return None
+    return digits.zfill(8)
+
+
+def _positive_int(value: object) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        result = int(str(value))
+    except (TypeError, ValueError):
+        return None
+    return result if result > 0 else None
+
+
+def _latest_tax_regime(value: object) -> tuple[str | None, int | None]:
+    if not isinstance(value, list):
+        return None, None
+    options: list[tuple[int, str]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        year = _positive_int(item.get("ano"))
+        regime = text(item.get("forma_de_tributacao"))
+        if year is not None and regime is not None:
+            options.append((year, regime))
+    if not options:
+        return None, None
+    year, regime = max(options, key=lambda item: item[0])
+    return regime, year
+
+
 def _profile(payload: Any, requested_cnpj: str, source_url: str) -> tuple[object, ...]:
     if not isinstance(payload, dict):
         raise EnrichmentError("resposta CNPJ não é objeto")
@@ -79,6 +134,7 @@ def _profile(payload: Any, requested_cnpj: str, source_url: str) -> tuple[object
         if isinstance(headquarters_code, int)
         else None
     )
+    tax_regime, tax_regime_year = _latest_tax_regime(payload.get("regime_tributario"))
     return (
         returned_cnpj,
         returned_cnpj[:8],
@@ -100,7 +156,13 @@ def _profile(payload: Any, requested_cnpj: str, source_url: str) -> tuple[object
         text(payload.get("logradouro")),
         text(payload.get("numero")),
         text(payload.get("complemento")),
-        text(payload.get("cep")),
+        _postal_code(payload.get("cep")),
+        _phone(payload.get("ddd_telefone_1")),
+        _phone(payload.get("ddd_telefone_2")),
+        _email(payload.get("email")),
+        tax_regime,
+        tax_regime_year,
+        _positive_int(payload.get("codigo_municipio_ibge")),
         payload.get("opcao_pelo_simples")
         if isinstance(payload.get("opcao_pelo_simples"), bool)
         else None,
@@ -138,7 +200,7 @@ def enrich_companies(
     http: PublicClient,
     limit: int,
     max_age_days: int = 30,
-    interval: float = 0.2,
+    interval: float = 1.0,
 ) -> EnrichmentReport:
     """Consulta apenas CNPJs novos/expirados e grava somente campos permitidos."""
     if limit < 1 or max_age_days < 0 or interval < 0:
@@ -168,8 +230,16 @@ def enrich_companies(
                 response = http.get(source_url)
                 profile = _profile(response.payload, cnpj, source_url)
                 connection.execute(
-                    "INSERT OR REPLACE INTO company_profile "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    """
+                    INSERT OR REPLACE INTO company_profile(
+                      cnpj, cnpj_root, legal_name, trade_name, registration_status, status_on,
+                      opened_on, headquarters_type, company_size, legal_nature, share_capital,
+                      primary_cnae, primary_cnae_description, secondary_cnaes_json, state, city,
+                      district, street, street_number, address_extra, postal_code, phone_primary,
+                      phone_secondary, email, tax_regime, tax_regime_year, municipality_ibge,
+                      simples, mei, source_url, fetched_at
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    """,
                     profile,
                 )
                 connection.execute(
@@ -190,3 +260,115 @@ def enrich_companies(
     finally:
         connection.close()
     return EnrichmentReport(len(candidates), attempted, enriched, failed, len(fresh))
+
+
+def _coordinate(value: object, minimum: float, maximum: float) -> float | None:
+    if value is None or str(value).strip() == "":
+        return None
+    try:
+        result = float(str(value))
+    except (TypeError, ValueError) as exc:
+        raise EnrichmentError("coordenada inválida") from exc
+    if not minimum <= result <= maximum:
+        raise EnrichmentError("coordenada fora do intervalo")
+    return result
+
+
+def _location(payload: Any, requested_postal_code: str, source_url: str) -> tuple[object, ...]:
+    if not isinstance(payload, dict):
+        raise EnrichmentError("resposta CEP não é objeto")
+    returned_postal_code = _postal_code(payload.get("cep"))
+    if returned_postal_code != requested_postal_code:
+        raise EnrichmentError("CEP da resposta diverge da consulta")
+    location = payload.get("location")
+    coordinates = location.get("coordinates") if isinstance(location, dict) else None
+    coordinates = coordinates if isinstance(coordinates, dict) else {}
+    longitude = _coordinate(coordinates.get("longitude"), -180, 180)
+    latitude = _coordinate(coordinates.get("latitude"), -90, 90)
+    if (longitude is None) != (latitude is None):
+        longitude = latitude = None
+    return (
+        returned_postal_code,
+        text(payload.get("state")),
+        text(payload.get("city")),
+        text(payload.get("neighborhood")),
+        text(payload.get("street")),
+        text(payload.get("service")),
+        longitude,
+        latitude,
+        source_url,
+        _now(),
+    )
+
+
+def geocode_company_postal_codes(
+    *,
+    cache_path: Path,
+    http: PublicClient,
+    limit: int,
+    max_age_days: int = 180,
+    interval: float = 1.0,
+) -> GeocodingReport:
+    """Resolve CEPs empresariais uma vez e mantém coordenadas em cache separado."""
+    if limit < 1 or max_age_days < 0 or interval < 0:
+        raise EnrichmentError("limite, validade ou intervalo inválido")
+    if not cache_path.exists():
+        raise EnrichmentError(f"cache empresarial não encontrado: {cache_path}")
+    connection = duckdb.connect(str(cache_path))
+    schema = files("radar_publico").joinpath("migrations/004_enrichment.sql").read_text()
+    connection.execute(schema)
+    threshold = _now() - timedelta(days=max_age_days)
+    candidates = [
+        str(row[0])
+        for row in connection.execute(
+            "SELECT DISTINCT postal_code FROM company_profile WHERE postal_code IS NOT NULL "
+            "ORDER BY (upper(city) IN ('CUIABA', 'CUIABÁ')) DESC, postal_code"
+        ).fetchall()
+    ]
+    fresh = {
+        str(row[0])
+        for row in connection.execute(
+            "SELECT postal_code FROM company_location WHERE fetched_at >= ?", [threshold]
+        ).fetchall()
+    }
+    attempted = geocoded = missing_coordinates = failed = 0
+    try:
+        for postal_code in candidates:
+            if postal_code in fresh:
+                continue
+            if attempted >= limit:
+                break
+            attempted += 1
+            source_url = f"{BRASIL_API_CEP}/{postal_code}"
+            try:
+                response = http.get(source_url)
+                location = _location(response.payload, postal_code, source_url)
+                connection.execute(
+                    "INSERT OR REPLACE INTO company_location VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    location,
+                )
+                has_coordinates = location[6] is not None and location[7] is not None
+                status = "succeeded" if has_coordinates else "missing_coordinates"
+                connection.execute(
+                    "INSERT INTO geocoding_attempt VALUES (?, ?, ?, ?, NULL)",
+                    [postal_code, _now(), status, response.status],
+                )
+                if has_coordinates:
+                    geocoded += 1
+                else:
+                    missing_coordinates += 1
+            except (EnrichmentError, HttpError) as exc:
+                status_code = exc.status if isinstance(exc, HttpError) else None
+                reason = exc.category if isinstance(exc, HttpError) else str(exc)
+                connection.execute(
+                    "INSERT INTO geocoding_attempt VALUES (?, ?, 'failed', ?, ?)",
+                    [postal_code, _now(), status_code, reason[:100]],
+                )
+                failed += 1
+            if interval and attempted < limit:
+                time.sleep(interval)
+    finally:
+        connection.close()
+    return GeocodingReport(
+        len(candidates), attempted, geocoded, missing_coordinates, failed, len(fresh)
+    )

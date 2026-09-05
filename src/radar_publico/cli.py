@@ -10,7 +10,11 @@ from radar_publico import __version__
 from radar_publico.api import run as run_api
 from radar_publico.collect import CollectionError, collect
 from radar_publico.coverage import reports, require_valid
-from radar_publico.enrich import EnrichmentError, enrich_companies
+from radar_publico.enrich import (
+    EnrichmentError,
+    enrich_companies,
+    geocode_company_postal_codes,
+)
 from radar_publico.http import HttpError, PublicClient
 from radar_publico.pipeline import refresh
 from radar_publico.sources import ManifestError, load_manifest
@@ -151,6 +155,7 @@ def transform_command(
 def enrich_command(
     live: bool = typer.Option(False, help="Autoriza consultas à BrasilAPI."),
     limit: int = typer.Option(20, min=1, help="Máximo de CNPJs consultados nesta execução."),
+    max_age_days: int = typer.Option(30, min=0, help="Validade do perfil em cache."),
     analytics_path: Path = typer.Option(Path("data/analytics.duckdb")),
     cache_path: Path = typer.Option(Path("data/enrichment.duckdb")),
 ) -> None:
@@ -165,6 +170,7 @@ def enrich_command(
                 cache_path=cache_path,
                 http=http,
                 limit=limit,
+                max_age_days=max_age_days,
             )
     except EnrichmentError as exc:
         typer.echo(f"Enriquecimento falhou: {exc}", err=True)
@@ -173,6 +179,36 @@ def enrich_command(
         f"Enriquecimento concluído: candidates={report.candidates} "
         f"attempted={report.attempted} enriched={report.enriched} "
         f"failed={report.failed} cached={report.cached}"
+    )
+
+
+@app.command("geocode")
+def geocode_command(
+    live: bool = typer.Option(False, help="Autoriza consultas de CEP à BrasilAPI."),
+    limit: int = typer.Option(50, min=1, help="Máximo de CEPs consultados nesta execução."),
+    max_age_days: int = typer.Option(180, min=0, help="Validade da coordenada em cache."),
+    cache_path: Path = typer.Option(Path("data/enrichment.duckdb")),
+) -> None:
+    """Geocodifica CEPs empresariais cacheados para visualização em mapa."""
+    if not live:
+        typer.echo("Geocodificação bloqueada; use --live.", err=True)
+        raise typer.Exit(2)
+    try:
+        with PublicClient() as http:
+            report = geocode_company_postal_codes(
+                cache_path=cache_path,
+                http=http,
+                limit=limit,
+                max_age_days=max_age_days,
+            )
+    except EnrichmentError as exc:
+        typer.echo(f"Geocodificação falhou: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(
+        f"Geocodificação concluída: candidates={report.candidates} "
+        f"attempted={report.attempted} geocoded={report.geocoded} "
+        f"missing_coordinates={report.missing_coordinates} failed={report.failed} "
+        f"cached={report.cached}"
     )
 
 

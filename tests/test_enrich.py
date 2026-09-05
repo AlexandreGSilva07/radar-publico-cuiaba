@@ -6,7 +6,12 @@ import duckdb
 import httpx
 import respx
 
-from radar_publico.enrich import BRASIL_API_CNPJ, enrich_companies
+from radar_publico.enrich import (
+    BRASIL_API_CEP,
+    BRASIL_API_CNPJ,
+    enrich_companies,
+    geocode_company_postal_codes,
+)
 from radar_publico.http import PublicClient
 
 
@@ -29,8 +34,15 @@ def test_enriches_only_whitelisted_company_fields(tmp_path: Path) -> None:
                 "descricao_situacao_cadastral": "ATIVA",
                 "cnae_fiscal": 1234,
                 "cnae_fiscal_descricao": "Serviços",
-                "email": "nao.persistir@example.com",
+                "cep": 78000001,
+                "codigo_municipio_ibge": 5103403,
+                "email": "CONTATO@example.com",
                 "ddd_telefone_1": "65999999999",
+                "ddd_telefone_2": "6533334444",
+                "regime_tributario": [
+                    {"ano": 2024, "forma_de_tributacao": "LUCRO PRESUMIDO"},
+                    {"ano": 2025, "forma_de_tributacao": "LUCRO REAL"},
+                ],
                 "qsa": [{"nome_socio": "Não Persistir"}],
             },
         )
@@ -50,8 +62,21 @@ def test_enriches_only_whitelisted_company_fields(tmp_path: Path) -> None:
 
     connection = duckdb.connect(str(cache), read_only=True)
     assert connection.execute(
-        "SELECT legal_name, registration_status, primary_cnae FROM company_profile"
-    ).fetchone() == ("Empresa teste", "ATIVA", "1234")
+        "SELECT legal_name, registration_status, primary_cnae, phone_primary, "
+        "phone_secondary, email, tax_regime, tax_regime_year, municipality_ibge, postal_code "
+        "FROM company_profile"
+    ).fetchone() == (
+        "Empresa teste",
+        "ATIVA",
+        "1234",
+        "65999999999",
+        "6533334444",
+        "contato@example.com",
+        "LUCRO REAL",
+        2025,
+        5103403,
+        "78000001",
+    )
     columns = {
         row[0]
         for row in connection.execute(
@@ -59,7 +84,50 @@ def test_enriches_only_whitelisted_company_fields(tmp_path: Path) -> None:
         ).fetchall()
     }
     connection.close()
-    assert not {"email", "phone", "qsa", "partner"} & columns
+    assert not {"qsa", "partner", "partner_document"} & columns
+
+
+@respx.mock
+def test_geocodes_cached_company_postal_codes(tmp_path: Path) -> None:
+    cache = tmp_path / "enrichment.duckdb"
+    connection = duckdb.connect(str(cache))
+    connection.execute(
+        "CREATE TABLE company_profile(cnpj VARCHAR, postal_code VARCHAR, city VARCHAR)"
+    )
+    connection.execute(
+        "INSERT INTO company_profile VALUES ('00000000000191', '78000001', 'CUIABA')"
+    )
+    connection.close()
+    route = respx.get(f"{BRASIL_API_CEP}/78000001").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "cep": "78000001",
+                "state": "MT",
+                "city": "Cuiabá",
+                "neighborhood": "Centro",
+                "street": "Rua Teste",
+                "service": "open-cep",
+                "location": {
+                    "type": "Point",
+                    "coordinates": {"longitude": "-56.0979", "latitude": "-15.6014"},
+                },
+            },
+        )
+    )
+
+    with PublicClient(backoff=0) as http:
+        report = geocode_company_postal_codes(
+            cache_path=cache, http=http, limit=10, interval=0
+        )
+
+    assert report.geocoded == 1
+    assert route.call_count == 1
+    connection = duckdb.connect(str(cache), read_only=True)
+    assert connection.execute(
+        "SELECT postal_code, longitude, latitude, provider FROM company_location"
+    ).fetchone() == ("78000001", -56.0979, -15.6014, "open-cep")
+    connection.close()
 
 
 def test_cli_or_function_cache_avoids_second_request(tmp_path: Path) -> None:
