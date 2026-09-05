@@ -2,7 +2,7 @@
 
 Inteligência comercial sobre compras públicas municipais, construída a partir de dados oficiais do Portal da Transparência de Cuiabá.
 
-O MVP entrega um pipeline auditável e um dashboard executivo local com oportunidades, contratos, fornecedores PJ, órgãos compradores, execução financeira, qualidade dos dados e exportação CSV.
+O MVP entrega um pipeline auditável e um dashboard analítico local, no padrão de leitura de ferramentas de BI, com oportunidades, contratos, fornecedores PJ, órgãos compradores, execução financeira, qualidade dos dados e exportação CSV.
 
 ## Resultado atual
 
@@ -14,7 +14,9 @@ Snapshot operacional de 2026 validado em 4 de setembro de 2026:
 | Licitações | 174 | 174 | 12 em andamento |
 | Despesas por credor | 2.150 | 2.150 | 1.204 CPFs suprimidos antes da Silver |
 
-Indicadores atuais: R$ 100,5 milhões em contratos, R$ 1,35 bilhão pagos e 951 fornecedores/credores com CNPJ válido. Quarenta perfis prioritários já foram enriquecidos pela BrasilAPI no cache local.
+Indicadores atuais: R$ 100,5 milhões em contratos, R$ 1,35 bilhão pagos, 2.150 registros financeiros e 951 fornecedores/credores com CNPJ válido. Quarenta perfis prioritários já foram enriquecidos pela BrasilAPI no cache local.
+
+O dashboard possui 15 visualizações SVG interativas, sem dependência de CDN: evolução mensal, comparação estimado/homologado, funil financeiro, situação das licitações, vencimentos, modalidades, categorias, rankings e taxas de pagamento. As tabelas paginadas permanecem disponíveis como detalhamento e exportação.
 
 ## Início rápido
 
@@ -100,6 +102,7 @@ Todos os artefatos operacionais ficam em `data/`, fora do Git:
 | `GET /api/health` | saúde do banco analítico |
 | `GET /api/meta` | ano, atualização, fonte e cobertura de enriquecimento |
 | `GET /api/summary` | KPIs executivos |
+| `GET /api/analytics` | séries e agregações prontos para os gráficos de BI |
 | `GET /api/opportunities` | oportunidades filtráveis e paginadas |
 | `GET /api/contracts` | contratos filtráveis e paginados |
 | `GET /api/renewals` | vencimentos por horizonte em dias |

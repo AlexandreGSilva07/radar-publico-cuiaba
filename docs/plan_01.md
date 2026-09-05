@@ -55,7 +55,7 @@ FastAPI com health, resumo, oportunidades, contratos, órgãos, fornecedores, de
 
 ### P2 — Dashboard ✅
 
-Frontend estático responsivo servido pelo FastAPI, com navegação lateral, cards, gráficos, tabelas, filtros por tela, estados de carregamento/erro/vazio e link persistente de origem.
+Frontend estático responsivo servido pelo FastAPI, com navegação lateral, KPIs compactos, 15 gráficos SVG interativos, tabelas secundárias, filtros por tela, estados de carregamento/erro/vazio e link persistente de origem. Os títulos analíticos são calculados a partir do snapshot, e os gráficos redimensionam sem exigir recarga.
 
 ### P3 — Operação ✅
 
@@ -71,13 +71,13 @@ Comando único para coletar/transformar, README, `.env.example`, Docker e CI. Ac
 
 ## 5. Evidência da execução inicial
 
-- 35 testes automatizados aprovados, Ruff e mypy sem erros;
+- 36 testes automatizados aprovados, Ruff e mypy sem erros;
 - pacote wheel construído com migrations e assets web;
 - coleta 2026 reconciliada: 170 contratos, 174 licitações e 2.150 despesas por credor;
 - Silver: 156 contratos únicos, 174 licitações e 2.150 despesas;
 - 14 duplicatas de contrato isoladas; 1.204 CPFs suprimidos;
 - 40 CNPJs prioritários enriquecidos com sucesso em duas filas de 20;
-- dashboard validado em Chromium a 1440×1000 e 390×844, sem erro de console;
+- dashboard de BI validado em Chromium a 1440×1000 e 390×844, com 15 gráficos, URLs diretas, redimensionamento, menu por teclado e sem erro de console ou overflow;
 - filtro por fornecedor, paginação, API e CSV testados sobre o banco real;
 - cada unidade foi commitada e enviada ao remoto antes da seguinte.
 

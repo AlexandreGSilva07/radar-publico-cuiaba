@@ -1,6 +1,6 @@
 # SPEC 01 — Radar Público Cuiabá
 
-**Status:** proposta inicial  
+**Status:** MVP 01 implementado; extensões posteriores permanecem sinalizadas
 **Versão:** 0.1  
 **Data:** 2026-09-04  
 **Produto:** Radar Público Cuiabá
@@ -614,12 +614,15 @@ O frontend sem build separado é uma decisão de velocidade e confiabilidade do 
 
 O dashboard final desta execução contém:
 
-1. visão executiva com valores, contagens, cobertura e atualização;
-2. oportunidades de licitação com busca e filtros;
-3. contratos ativos e radar de vencimentos;
-4. órgãos compradores e fornecedores PJ;
-5. despesas pagas agregadas por credor CNPJ;
-6. qualidade/proveniência e exportação CSV.
+1. visão executiva com cinco KPIs e seis gráficos de evolução, composição, concentração e vencimentos;
+2. oportunidades de licitação com análise por órgão/modalidade, busca, situação e paginação;
+3. contratos ativos com ritmo mensal, categorias e radar de vencimentos;
+4. órgãos compradores comparados por valores estimado, homologado e contratado;
+5. fornecedores PJ com rankings de carteira e pagamentos, além do enriquecimento cadastral disponível;
+6. despesas pagas por credor CNPJ, incluindo taxa de conversão do empenho em pagamento;
+7. qualidade/proveniência, API JSON e exportação CSV.
+
+Ao todo são 15 visualizações SVG interativas, renderizadas sem CDN. Títulos derivados de valores são calculados dinamicamente; unidades e recortes aparecem no próprio gráfico. As tabelas ficam depois da leitura analítica, como detalhamento, e o layout é recalculado ao redimensionar a janela.
 
 ### 18.4 Gates
 
@@ -646,7 +649,7 @@ Status em 4 de setembro de 2026: núcleo funcional entregue.
 - Gold com KPIs, oportunidades, vencimentos, órgãos, fornecedores, execução PJ e qualidade;
 - cache BrasilAPI separado, seletivo e não bloqueante;
 - FastAPI somente leitura, filtros parametrizados, paginação e CSV com allowlist;
-- dashboard local sem dependências CDN, responsivo e validado no navegador;
+- dashboard de BI local sem dependências CDN, responsivo e validado em desktop/mobile com Playwright;
 - `refresh` executa a cadeia integral depois dos gates de cobertura;
 - Docker Compose e CI reproduzível; dados reais permanecem fora do Git.
 

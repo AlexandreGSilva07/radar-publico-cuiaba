@@ -63,6 +63,7 @@ uv run radar-cuiaba transform --year 2026
 curl --fail http://127.0.0.1:8000/api/health
 curl --fail http://127.0.0.1:8000/api/meta
 curl --fail http://127.0.0.1:8000/api/summary
+curl --fail http://127.0.0.1:8000/api/analytics
 curl --fail --output /tmp/radar-contracts.csv \
   http://127.0.0.1:8000/api/export/contracts.csv
 ```
@@ -70,11 +71,12 @@ curl --fail --output /tmp/radar-contracts.csv \
 No dashboard, conferir:
 
 1. ano e horário de atualização;
-2. cards sem valores vazios inesperados;
-3. oportunidades e contratos com paginação;
-4. filtro por nome de fornecedor e por CNPJ;
-5. tela de qualidade com rejeições e CPFs suprimidos;
-6. link para a fonte oficial.
+2. KPIs e gráficos sem valores vazios inesperados;
+3. evolução mensal, rankings e composição coerentes com o mesmo recorte anual;
+4. oportunidades e contratos com paginação;
+5. filtro por nome de fornecedor e por CNPJ;
+6. tela de qualidade com rejeições e CPFs suprimidos;
+7. link para a fonte oficial.
 
 ## 6. Recuperação
 
@@ -103,4 +105,3 @@ Os commits protegem código e documentação, mas não os dados ignorados pelo G
 O Bronze contém a resposta pública original e deve permanecer restrito ao operador. Apenas Silver/Gold alimentam o produto. CPF é detectado apenas para contagem e imediatamente substituído por `NULL`; o valor não é copiado para o analítico. O cache empresarial usa uma lista permitida de campos e nunca persiste o corpo completo retornado pela [BrasilAPI](https://github.com/BrasilAPI/BrasilAPI/blob/main/pages/docs/doc/cnpj.json).
 
 Antes de abrir acesso a clientes externos, adicionar autenticação, HTTPS, termos de uso, monitoramento, backup testado e controle de acesso ao diretório de dados.
-
