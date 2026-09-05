@@ -1661,6 +1661,227 @@ td small {
   line-height: 1.65;
 }
 
+/* Executive BI workspace */
+.overview-heading {
+  align-items: center;
+  margin-top: 0;
+  margin-bottom: 18px;
+}
+
+.overview-heading h1 {
+  margin-top: 7px;
+  font-size: clamp(1.75rem, 2.4vw, 2.35rem);
+}
+
+.overview-heading > div:first-child > p:last-child {
+  max-width: 780px;
+  line-height: 1.5;
+}
+
+.period-chip {
+  min-width: 154px;
+  padding: 10px 13px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgb(255 255 255 / 86%);
+  box-shadow: var(--shadow-sm);
+}
+
+.period-chip span,
+.period-chip strong {
+  display: block;
+}
+
+.period-chip span {
+  color: var(--muted-light);
+  font-size: 0.49rem;
+  font-weight: 850;
+  letter-spacing: 0.13em;
+}
+
+.period-chip strong {
+  margin-top: 4px;
+  color: var(--ink);
+  font-size: 0.7rem;
+}
+
+.period-chip b {
+  font-size: 0.8rem;
+}
+
+.kpi-grid-bi {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.kpi-grid-bi .kpi-card {
+  min-height: 112px;
+  padding: 15px 16px 14px;
+  border-radius: 12px;
+}
+
+.kpi-grid-bi .kpi-card::after {
+  display: none;
+}
+
+.kpi-label {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.5rem;
+  font-weight: 850;
+  letter-spacing: 0.09em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metric-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--blue);
+  box-shadow: 0 0 0 4px rgb(59 130 246 / 9%);
+}
+
+.tone-teal .metric-dot {
+  background: var(--green);
+  box-shadow: 0 0 0 4px rgb(11 168 121 / 9%);
+}
+
+.tone-purple .metric-dot {
+  background: var(--purple);
+  box-shadow: 0 0 0 4px rgb(128 103 220 / 9%);
+}
+
+.tone-amber .metric-dot {
+  background: var(--amber);
+  box-shadow: 0 0 0 4px rgb(233 155 37 / 10%);
+}
+
+.kpi-grid-bi .kpi-card > strong {
+  margin-top: 14px;
+  font-size: clamp(1.35rem, 1.8vw, 1.72rem);
+}
+
+.kpi-grid-bi .kpi-card > small {
+  overflow: hidden;
+  margin-top: 3px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kpi-opportunity {
+  border-color: #173943;
+  color: white;
+  background: linear-gradient(135deg, #102b34, #0b2028);
+}
+
+.kpi-opportunity .kpi-label,
+.kpi-opportunity > small {
+  color: #89a3aa;
+}
+
+.kpi-opportunity > strong {
+  color: var(--green-bright);
+}
+
+.kpi-opportunity .metric-dot {
+  background: var(--green-bright);
+  box-shadow: 0 0 0 4px rgb(49 221 167 / 12%);
+}
+
+.span-8 {
+  grid-column: span 8;
+}
+
+.span-6 {
+  grid-column: span 6;
+}
+
+.span-4 {
+  grid-column: span 4;
+}
+
+.bi-grid {
+  gap: 14px;
+}
+
+.bi-panel {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  border-radius: 12px;
+}
+
+.bi-chart {
+  width: 100%;
+  height: 370px;
+  min-height: 320px;
+  flex: 1 1 auto;
+}
+
+.bi-chart-ranking {
+  height: 390px;
+}
+
+.panel-link {
+  display: block;
+  padding: 11px 20px 12px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--green-dark);
+  font-size: 0.62rem;
+  font-weight: 780;
+  text-align: right;
+}
+
+.panel-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.detail-panel summary {
+  display: flex;
+  min-height: 68px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 14px 20px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.detail-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.detail-panel summary span:first-child small,
+.detail-panel summary span:first-child strong {
+  display: block;
+}
+
+.detail-panel summary span:first-child small {
+  color: var(--green-dark);
+  font-size: 0.5rem;
+  font-weight: 850;
+  letter-spacing: 0.14em;
+}
+
+.detail-panel summary span:first-child strong {
+  margin-top: 4px;
+  font-size: 0.86rem;
+}
+
+.detail-panel summary > span:last-child {
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 720;
+}
+
+.detail-panel[open] summary {
+  border-bottom: 1px solid var(--line-soft);
+}
+
 @media (max-width: 1200px) {
   .executive-hero {
     grid-template-columns: minmax(0, 1fr) minmax(300px, 0.72fr);
@@ -1674,6 +1895,10 @@ td small {
   .kpi-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .kpi-grid-bi {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 @media (max-width: 1050px) {
@@ -1686,7 +1911,10 @@ td small {
   }
 
   .span-7,
-  .span-5 {
+  .span-5,
+  .span-8,
+  .span-6,
+  .span-4 {
     grid-column: span 12;
   }
 
@@ -1757,6 +1985,10 @@ td small {
 
   .view {
     padding-inline: 17px;
+  }
+
+  .kpi-grid-bi {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .pipeline-layout {
@@ -1848,6 +2080,14 @@ td small {
     gap: 10px;
   }
 
+  .kpi-grid-bi .kpi-card {
+    min-height: 106px;
+  }
+
+  .kpi-grid-bi .kpi-card:last-child {
+    grid-column: 1 / -1;
+  }
+
   .kpi-card {
     min-height: 144px;
     padding: 15px;
@@ -1868,6 +2108,12 @@ td small {
 
   .chart {
     padding: 20px 17px;
+  }
+
+  .bi-chart,
+  .bi-chart-ranking {
+    height: 355px;
+    min-height: 310px;
   }
 
   .pipeline-layout {

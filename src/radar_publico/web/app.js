@@ -34,6 +34,17 @@ const compactCurrency = new Intl.NumberFormat("pt-BR", {
 });
 const integer = new Intl.NumberFormat("pt-BR");
 
+if (window.Charts) {
+  Charts.applyPalette({
+    n0: "#ffffff", n0a: "#f3f6f3", n1: "#dce4e1", n2a: "#bec0be",
+    n2: "#a4a7a4", n3: "#8b8d8b", n4: "#708087", n5: "#666666",
+    n6: "#4d4d4d", n7: "#344b54", n8: "#10252d", n9: "#0b1f27",
+    nInverse: "#ffffff", s1: "#10252d", s2: "#097e5d", s3: "#0f9770",
+    s4: "#39ae86", s5: "#68c39f", s6: "#8ed7b9", s7: "#9ad4c6",
+    accent: "#3b82f6", annotation: "#a43c43", counter: "#e99b25",
+  });
+}
+
 function element(selector) { return document.querySelector(selector); }
 function html(value) {
   return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;")
@@ -115,20 +126,121 @@ function queryString(values) {
   return parameters.toString();
 }
 
+function monthLabel(value, withYear = false) {
+  const [year, month] = String(value).split("-");
+  const names = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+  const name = names[Number(month) - 1] || value;
+  return withYear ? `${name}/${String(year).slice(-2)}` : name;
+}
+
+function shortName(value, limit = 42) {
+  const clean = text(value).replace(/^SECRETARIA MUNICIPAL D[AEOS]*\s+/i, "");
+  const readable = clean.toLocaleLowerCase("pt-BR").replace(/(^|[\s,/()-])\p{L}/gu, (letter) => letter.toLocaleUpperCase("pt-BR"));
+  return clipped(readable, limit);
+}
+
+function rounded(value, digits = 1) {
+  const scale = 10 ** digits;
+  return Math.round((Number(value) + Number.EPSILON) * scale) / scale;
+}
+
+function renderOverviewCharts(summary, analytics) {
+  if (!window.Charts) throw new Error("Biblioteca de gráficos indisponível");
+
+  const procurementMonths = analytics.procurements_by_month;
+  Charts.column("procurements-month-chart", {
+    title: "Estimado x homologado por mês",
+    subtitle: `Licitações publicadas em ${summary.year} · R$ milhões`,
+    xAxis: { categories: procurementMonths.map((item) => monthLabel(item.month)) },
+    yAxis: { suffix: " mi" },
+    tooltip: { valuePrefix: "R$ ", valueSuffix: " mi", valueDecimals: 1 },
+    plotOptions: { column: { dataLabels: false, pointPadding: 0.08, groupPadding: 0.14 } },
+    series: [
+      { name: "Estimado", color: "#a4a7a4", data: procurementMonths.map((item) => Number(item.estimated_value) / 1e6) },
+      { name: "Homologado", color: "#097e5d", data: procurementMonths.map((item) => Number(item.awarded_value) / 1e6) },
+    ],
+  });
+
+  const paymentRate = Number(summary.paid_value) / Math.max(Number(summary.committed_value), 1) * 100;
+  Charts.barList("finance-stage-chart", {
+    title: "Do empenho ao pagamento",
+    subtitle: `${paymentRate.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% do empenhado já foi pago · R$ bilhões`,
+    plotOptions: { barList: { autoHeight: false, valueSuffix: " bi", barHeight: 23, rowGap: 24 } },
+    series: [{ name: "Valor", data: [
+      { name: "Empenhado", y: rounded(Number(summary.committed_value) / 1e9, 2), color: "#10252d" },
+      { name: "Liquidado", y: rounded(Number(summary.settled_value) / 1e9, 2), color: "#3b82f6" },
+      { name: "Pago", y: rounded(Number(summary.paid_value) / 1e9, 2), color: "#097e5d" },
+    ] }],
+  });
+
+  Charts.barList("agency-chart", {
+    title: "Educação lidera o valor contratado",
+    subtitle: `Cinco maiores órgãos · contratos assinados em ${summary.year} · R$ milhões`,
+    plotOptions: { barList: { autoHeight: false, valueSuffix: " mi", barHeight: 18, rowGap: 14 } },
+    series: [{ name: "Contratado", data: analytics.top_agencies.slice(0, 5).map((item, index) => ({
+      name: shortName(item.agency), y: rounded(Number(item.contract_value) / 1e6),
+      color: index === 0 ? "#097e5d" : "#8b8d8b",
+    })) }],
+  });
+
+  const statuses = analytics.procurement_statuses;
+  const homologated = statuses.filter((item) => item.status === "HOMOLOGADO").reduce((sum, item) => sum + item.procurement_count, 0);
+  const moving = statuses.filter((item) => ["EM ANDAMENTO", "PARALISADO", "PRORROGAÇÃO"].includes(item.status)).reduce((sum, item) => sum + item.procurement_count, 0);
+  const totalStatuses = statuses.reduce((sum, item) => sum + item.procurement_count, 0);
+  const other = Math.max(0, totalStatuses - homologated - moving);
+  const homologatedRate = totalStatuses ? homologated / totalStatuses * 100 : 0;
+  Charts.donut("status-chart", {
+    title: `${homologatedRate.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}% dos processos foram homologados`,
+    subtitle: `Situação das ${integer.format(totalStatuses)} licitações publicadas em ${summary.year}`,
+    plotOptions: { pie: {
+      innerSize: "64%", showPercentages: true, dataLabels: { enabled: false },
+      centerText: { value: integer.format(totalStatuses), label: "processos", color: "#10252d" },
+    } },
+    series: [{ name: "Processos", data: [
+      { name: "Homologados", y: homologated, color: "#097e5d" },
+      { name: "Em movimento", y: moving, color: "#3b82f6" },
+      { name: "Outros", y: other, color: "#8b8d8b" },
+    ] }],
+  });
+
+  const renewals = analytics.renewals_by_month;
+  Charts.column("renewals-chart", {
+    title: "Renovações se concentram no 1º trimestre de 2027",
+    subtitle: "Contratos com vigência terminando nos próximos 365 dias · quantidade",
+    xAxis: { categories: renewals.map((item) => monthLabel(item.month, true)) },
+    yAxis: { suffix: "" },
+    tooltip: { valueSuffix: " contratos", valueDecimals: 0 },
+    plotOptions: { column: { dataLabels: true, pointPadding: 0.12, groupPadding: 0.1 } },
+    series: [{ name: "Contratos", color: "#097e5d", data: renewals.map((item) => item.contract_count) }],
+  });
+
+  Charts.barList("opportunity-agency-chart", {
+    title: "Saúde concentra as oportunidades abertas",
+    subtitle: "Processos em andamento, paralisados ou em prorrogação · quantidade",
+    plotOptions: { barList: { autoHeight: false, valueSuffix: "", barHeight: 18, rowGap: 14 } },
+    series: [{ name: "Oportunidades", data: analytics.open_opportunities_by_agency.slice(0, 5).map((item, index) => ({
+      name: shortName(item.agency), y: item.opportunity_count,
+      color: index === 0 ? "#3b82f6" : "#8b8d8b",
+    })) }],
+  });
+}
+
 async function loadOverview(force = false) {
   if (appState.loaded.has("overview") && !force) return;
   showStatus("Atualizando indicadores executivos…");
   try {
-    const [summary, metadata, pipeline, agencies, renewals, opportunities] = await Promise.all([
-      api("/api/summary"), api("/api/meta"), api("/api/pipeline"),
-      api("/api/agencies?page_size=5"), api("/api/renewals?page_size=6&within_days=365"),
-      api("/api/opportunities?page_size=100"),
+    const [summary, metadata, analytics, renewals] = await Promise.all([
+      api("/api/summary"), api("/api/meta"), api("/api/analytics"),
+      api("/api/renewals?page_size=6&within_days=365"),
     ]);
     element("#dataset-year").textContent = summary.year;
-    element("#period-label").textContent = `Ano de ${summary.year}`;
-    element("#hero-open").textContent = integer.format(summary.open_procurements);
-    element("#kpi-open").textContent = integer.format(summary.procurement_count);
-    element("#kpi-open-detail").textContent = `${integer.format(summary.open_procurements)} em andamento agora`;
+    element("#kpi-estimated").textContent = money(summary.estimated_value, true);
+    element("#kpi-estimated").title = money(summary.estimated_value);
+    element("#kpi-procurement-count").textContent = `${integer.format(summary.procurement_count)} processos publicados`;
+    element("#kpi-awarded").textContent = money(summary.awarded_value, true);
+    element("#kpi-awarded").title = money(summary.awarded_value);
+    element("#kpi-savings-detail").textContent = `${money(summary.procurement_savings, true)} de economia sobre o estimado`;
+    element("#kpi-open").textContent = integer.format(summary.open_procurements);
     element("#nav-open-count").textContent = integer.format(summary.open_procurements);
     element("#kpi-contracts").textContent = money(summary.contract_value, true);
     element("#kpi-contracts").title = money(summary.contract_value);
@@ -136,61 +248,13 @@ async function loadOverview(force = false) {
     element("#kpi-paid").textContent = money(summary.paid_value, true);
     element("#kpi-paid").title = money(summary.paid_value);
     element("#kpi-creditors").textContent = `${integer.format(summary.creditor_count)} credores consolidados`;
-    element("#kpi-savings").textContent = money(summary.procurement_savings, true);
-    element("#kpi-savings").title = money(summary.procurement_savings);
     element("#last-updated").textContent = dateTime(metadata.dataset.built_at);
     element("#source-link").href = metadata.source_url;
-    renderPipeline(pipeline);
-    renderAgencyRanking(agencies.items);
+    renderOverviewCharts(summary, analytics);
     renderRenewals(renewals.items);
-    renderHeroOpportunity(opportunities.items);
     appState.loaded.add("overview");
     showStatus(`Dados de ${summary.year} carregados com sucesso.`, "success");
   } catch (error) { showError(error); }
-}
-
-function renderPipeline(items) {
-  const total = items.reduce((sum, item) => sum + item.procurement_count, 0);
-  const colors = ["#0ba879", "#3b82f6", "#e99b25", "#8067dc", "#d6565c", "#7e949c", "#58c4aa"];
-  let offset = 0;
-  const segments = items.map((item, index) => {
-    const start = offset;
-    offset += total ? item.procurement_count / total * 100 : 0;
-    return `${colors[index % colors.length]} ${start}% ${offset}%`;
-  }).join(", ");
-  element("#pipeline-chart").innerHTML = `<div class="pipeline-layout">
-    <div class="donut-shell"><div class="donut" style="background:conic-gradient(${segments})"></div>
-      <div class="donut-center"><strong>${integer.format(total)}</strong><span>processos mapeados</span></div></div>
-    <div class="legend-list">${items.map((item, index) => `<div class="legend-row">
-      <span class="legend-color" style="--legend-color:${colors[index % colors.length]}"></span>
-      <div class="legend-copy"><strong>${html(item.status)}</strong><small>${money(item.awarded_value, true)} homologados</small></div>
-      <b>${integer.format(item.procurement_count)}</b></div>`).join("")}</div></div>`;
-}
-function renderHeroOpportunity(items) {
-  if (!items.length) {
-    element("#hero-highlight-number").textContent = "Nenhum processo aberto";
-    element("#hero-highlight-object").textContent = "O radar não encontrou oportunidades neste recorte.";
-    element("#hero-highlight-agency").textContent = "Amplie os filtros para consultar o histórico.";
-    element("#hero-highlight-date").textContent = "—";
-    element("#hero-score").textContent = "0";
-    return;
-  }
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const upcoming = items.filter((item) => item.session_on && new Date(`${item.session_on}T00:00:00`) >= today)
-    .sort((left, right) => left.session_on.localeCompare(right.session_on));
-  const featured = upcoming[0] || items[0];
-  element("#hero-highlight-number").textContent = `${text(featured.number, "s/n")} / ${featured.year}`;
-  element("#hero-highlight-object").textContent = text(featured.object_text);
-  element("#hero-highlight-agency").textContent = text(featured.agency);
-  element("#hero-highlight-date").textContent = date(featured.session_on);
-  element("#hero-score").textContent = integer.format(featured.relevance_score);
-}
-function renderAgencyRanking(items) {
-  const maximum = Math.max(...items.map((item) => Number(item.contract_value)), 1);
-  element("#agency-ranking").innerHTML = items.length ? items.map((item, index) => `<div class="rank-row">
-    <span class="rank-number">${String(index + 1).padStart(2, "0")}</span><div><strong title="${html(item.agency)}">${html(clipped(item.agency, 42))}</strong>
-    <div class="mini-track"><i style="width:${Math.max(3, Number(item.contract_value) / maximum * 100)}%"></i></div></div><b>${html(money(item.contract_value, true))}</b></div>`).join("") : `<div class="inline-empty">Sem órgãos no período.</div>`;
 }
 function renderRenewals(items) {
   element("#renewals-body").innerHTML = items.length ? items.map((item) => `<tr>

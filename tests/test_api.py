@@ -63,11 +63,15 @@ def test_health_metadata_and_summary(tmp_path: Path) -> None:
     dashboard = client.get("/")
     assert dashboard.status_code == 200
     assert "Radar Público Cuiabá" in dashboard.text
-    assert "Decida onde sua empresa deve" in dashboard.text
-    assert 'id="hero-highlight-object"' in dashboard.text
+    assert "Mercado público de Cuiabá" in dashboard.text
+    assert 'id="procurements-month-chart"' in dashboard.text
+    assert 'id="finance-stage-chart"' in dashboard.text
+    assert 'id="renewals-chart"' in dashboard.text
     assert 'id="sidebar-backdrop"' in dashboard.text
     assert client.get("/styles.css").status_code == 200
     assert client.get("/app.js").status_code == 200
+    assert client.get("/charts-lib/theme.js").status_code == 200
+    assert client.get("/charts-lib/charts.js").status_code == 200
 
 
 def test_health_reports_missing_database(tmp_path: Path) -> None:
