@@ -12,6 +12,7 @@ from radar_publico.collect import CollectionError, collect
 from radar_publico.coverage import reports, require_valid
 from radar_publico.enrich import EnrichmentError, enrich_companies
 from radar_publico.http import HttpError, PublicClient
+from radar_publico.pipeline import refresh
 from radar_publico.sources import ManifestError, load_manifest
 from radar_publico.state import State, StateError
 from radar_publico.transform import TransformError, build_analytics
@@ -183,6 +184,51 @@ def serve_command(
 ) -> None:
     """Inicia a API e o dashboard local."""
     run_api(host=host, port=port, reload=reload)
+
+
+@app.command("refresh")
+def refresh_command(
+    year: int = typer.Option(...),
+    live: bool = typer.Option(False, help="Autoriza coleta e enriquecimento externos."),
+    enrichment_limit: int = typer.Option(20, min=0),
+    cycle_id: str | None = typer.Option(None),
+    ops_path: Path = typer.Option(Path("data/ops.duckdb")),
+    bronze_path: Path = typer.Option(Path("data/bronze")),
+    analytics_path: Path = typer.Option(Path("data/analytics.duckdb")),
+    enrichment_path: Path = typer.Option(Path("data/enrichment.duckdb")),
+) -> None:
+    """Coleta, valida, transforma e enriquece em uma única execução."""
+    if not live:
+        typer.echo("Atualização bloqueada; use --live.", err=True)
+        raise typer.Exit(2)
+    try:
+        report = refresh(
+            year=year,
+            ops_path=ops_path,
+            bronze_root=bronze_path,
+            analytics_path=analytics_path,
+            enrichment_path=enrichment_path,
+            enrichment_limit=enrichment_limit,
+            cycle_id=cycle_id,
+        )
+    except (
+        CollectionError,
+        EnrichmentError,
+        HttpError,
+        ManifestError,
+        StateError,
+        TransformError,
+    ) as exc:
+        typer.echo(f"Atualização falhou: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    collection_counts = ", ".join(
+        f"{item.resource}: {item.collected_records}" for item in report.collections
+    )
+    typer.echo(
+        f"Atualização concluída: cycle={report.cycle_id} year={year} "
+        f"collections={{{collection_counts}}} "
+        f"silver={report.analytics.counts}"
+    )
 
 
 if __name__ == "__main__":
