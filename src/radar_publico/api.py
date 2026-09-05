@@ -21,6 +21,38 @@ from radar_publico.normalize import search_text as normalize_search_text
 
 PORTAL_URL = "https://transparencia.cuiaba.mt.gov.br/portaltransparencia/"
 
+
+def _market_sector(cnae: object) -> str:
+    digits = "".join(character for character in str(cnae or "") if character.isdigit())
+    division = int(digits[:2]) if len(digits) >= 2 else -1
+    ranges = (
+        (1, 3, "Agropecuária"),
+        (5, 9, "Indústrias extrativas"),
+        (10, 33, "Indústrias de transformação"),
+        (35, 35, "Energia"),
+        (36, 39, "Água, esgoto e resíduos"),
+        (41, 43, "Construção"),
+        (45, 47, "Comércio"),
+        (49, 53, "Transporte e logística"),
+        (55, 56, "Alojamento e alimentação"),
+        (58, 63, "Informação e comunicação"),
+        (64, 66, "Serviços financeiros"),
+        (68, 68, "Atividades imobiliárias"),
+        (69, 75, "Serviços profissionais e técnicos"),
+        (77, 82, "Serviços administrativos"),
+        (84, 84, "Administração pública"),
+        (85, 85, "Educação"),
+        (86, 88, "Saúde e assistência social"),
+        (90, 93, "Artes, cultura e esportes"),
+        (94, 96, "Outros serviços"),
+        (97, 97, "Serviços domésticos"),
+        (99, 99, "Organismos internacionais"),
+    )
+    return next(
+        (label for start, end, label in ranges if start <= division <= end),
+        "Não classificado",
+    )
+
 EXPORTS = {
     "opportunities": (
         "SELECT procurement_id, number, year, object_text, agency, modality, status, "
@@ -195,7 +227,11 @@ class AnalyticsDatabase:
         )
         profiles = self.profiles([str(item["cnpj"]) for item in metrics])
         items = [
-            {**item, **profiles[str(item["cnpj"])]}
+            {
+                **item,
+                **profiles[str(item["cnpj"])],
+                "market_sector": _market_sector(profiles[str(item["cnpj"])]["primary_cnae"]),
+            }
             for item in metrics
             if str(item["cnpj"]) in profiles
         ]

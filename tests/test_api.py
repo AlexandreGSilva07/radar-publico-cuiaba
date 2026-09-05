@@ -186,6 +186,7 @@ def test_market_intelligence_connects_company_metrics_profile_and_location(
     company = payload["items"][0]
     assert company["supplier_name"] == "Empresa Ágil"
     assert company["primary_cnae"] == "6201501"
+    assert company["market_sector"] == "Informação e comunicação"
     assert company["phone_primary"] == "65999999999"
     assert company["tax_regime"] == "LUCRO PRESUMIDO"
     assert company["longitude"] == -56.0979
