@@ -1,0 +1,22 @@
+version: 1
+source_name: portal_transparencia_cuiaba
+base_url: https://transparencia.cuiaba.mt.gov.br/portaltransparencia/servlet
+page_size: 100
+resources:
+  contratos:
+    query_endpoint: aapicontrato
+    filter_endpoint: aapifiltercontrato
+    year_field: ContratoAno
+    natural_key: ContratoId
+    document_field: ContratoFornecedorDoc
+  licitacoes:
+    query_endpoint: aapilicitacao
+    filter_endpoint: aapifilterlicitacao
+    year_field: LicitacaoAno
+    natural_key: LicitacaoId
+  despesas:
+    query_endpoint: aapidespesacredor
+    filter_endpoint: aapifilterdespesacredor
+    year_field: DespesaAno
+    natural_key: DespesaCredorId
+    document_field: DespesaCredorDoc
