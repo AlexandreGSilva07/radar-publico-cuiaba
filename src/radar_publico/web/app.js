@@ -422,6 +422,24 @@ function renderExpenseCharts(analytics) {
   });
 }
 
+async function rerenderCurrentCharts() {
+  const view = appState.currentView;
+  if (!appState.loaded.has(view) || view === "quality") return;
+  try {
+    const analytics = await getAnalytics();
+    if (view === "overview") {
+      const [summary] = await getContext();
+      renderOverviewCharts(summary, analytics);
+    } else if (view === "opportunities") renderOpportunityCharts(analytics);
+    else if (view === "contracts") renderContractCharts(analytics);
+    else if (view === "suppliers") renderSupplierCharts(analytics);
+    else if (view === "agencies") renderAgencyCharts(analytics);
+    else if (view === "expenses") renderExpenseCharts(analytics);
+  } catch (error) {
+    showError(error);
+  }
+}
+
 async function loadOverview(force = false) {
   if (appState.loaded.has("overview") && !force) return;
   showStatus("Atualizando indicadores executivos…");
@@ -616,5 +634,10 @@ document.querySelectorAll("[data-filter]").forEach((button) => button.addEventLi
 document.querySelectorAll(".filter-bar input").forEach((input) => input.addEventListener("keydown", (event) => {
   if (event.key === "Enter") event.currentTarget.closest(".filter-bar").querySelector("[data-filter]").click();
 }));
+let resizeTimer;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(rerenderCurrentCharts, 180);
+});
 window.addEventListener("hashchange", () => navigate(location.hash.slice(1)));
 navigate(location.hash.slice(1));

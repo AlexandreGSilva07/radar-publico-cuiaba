@@ -7,10 +7,10 @@
     <meta name="description" content="Inteligência comercial sobre compras públicas de Cuiabá.">
     <title>Radar Público Cuiabá</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/styles.css?v=4">
+    <link rel="stylesheet" href="/styles.css?v=5">
     <script src="/charts-lib/theme.js?v=1" defer></script>
     <script src="/charts-lib/charts.js?v=1" defer></script>
-    <script src="/app.js?v=4" defer></script>
+    <script src="/app.js?v=5" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#content">Ir para o conteúdo</a>
@@ -135,7 +135,7 @@
             </article>
             <details class="panel detail-panel span-12">
               <summary><span><small>DETALHAMENTO</small><strong>Contratos próximos do encerramento</strong></span><span>Ver registros ↓</span></summary>
-              <div class="table-wrap"><table class="data-table"><thead><tr><th>Fornecedor / objeto</th><th>Órgão</th><th>Encerramento</th><th>Dias</th><th class="numeric">Valor atual</th></tr></thead><tbody id="renewals-body"><tr><td colspan="5" class="skeleton-row">Carregando renovações…</td></tr></tbody></table></div>
+              <div class="table-wrap"><table class="data-table" aria-label="Contratos próximos do encerramento"><thead><tr><th>Fornecedor / objeto</th><th>Órgão</th><th>Encerramento</th><th>Dias</th><th class="numeric">Valor atual</th></tr></thead><tbody id="renewals-body"><tr><td colspan="5" class="skeleton-row">Carregando renovações…</td></tr></tbody></table></div>
             </details>
           </div>
         </section>
@@ -153,8 +153,8 @@
             <article class="panel bi-panel span-6"><div class="bi-chart bi-chart-ranking" id="modalities-chart" role="img" aria-label="Distribuição das licitações por modalidade"></div></article>
           </div>
           <div class="detail-heading"><div><p class="eyebrow">DETALHAMENTO</p><h2>Processos disponíveis para prospecção</h2></div></div>
-          <div class="filter-bar"><label class="search-field">⌕<input id="opportunities-search" type="search" placeholder="Buscar por objeto…"></label><select id="opportunities-status" aria-label="Filtrar situação"><option value="">Todas as situações</option><option>EM ANDAMENTO</option><option>PARALISADO</option><option>PRORROGAÇÃO</option></select><button class="button primary" data-filter="opportunities">Aplicar filtros</button></div>
-          <article class="panel"><div class="table-wrap"><table class="data-table"><thead><tr><th>Oportunidade</th><th>Órgão</th><th>Situação</th><th>Sessão</th><th class="numeric">Valor estimado</th><th>Relevância</th></tr></thead><tbody id="opportunities-body"></tbody></table></div><div class="pagination" id="opportunities-pagination"></div></article>
+          <div class="filter-bar"><label class="search-field">⌕<input id="opportunities-search" type="search" placeholder="Buscar por objeto…" aria-label="Buscar oportunidades por objeto"></label><select id="opportunities-status" aria-label="Filtrar situação"><option value="">Todas as situações</option><option>EM ANDAMENTO</option><option>PARALISADO</option><option>PRORROGAÇÃO</option></select><button class="button primary" data-filter="opportunities">Aplicar filtros</button></div>
+          <article class="panel"><div class="table-wrap"><table class="data-table" aria-label="Oportunidades públicas"><thead><tr><th>Oportunidade</th><th>Órgão</th><th>Situação</th><th>Sessão</th><th class="numeric">Valor estimado</th><th>Relevância</th></tr></thead><tbody id="opportunities-body"></tbody></table></div><div class="pagination" id="opportunities-pagination"></div></article>
         </section>
 
         <section class="view" id="view-contracts" data-title="Contratos">
@@ -170,8 +170,8 @@
             <article class="panel bi-panel span-6"><div class="bi-chart bi-chart-ranking" id="categories-chart" role="img" aria-label="Categorias de contratos por valor"></div></article>
           </div>
           <div class="detail-heading"><div><p class="eyebrow">DETALHAMENTO</p><h2>Carteira de contratos</h2></div></div>
-          <div class="filter-bar"><label class="search-field">⌕<input id="contracts-search" type="search" placeholder="Objeto ou fornecedor…"></label><select id="contracts-status" aria-label="Filtrar situação"><option value="">Todas as situações</option><option>Contrato Vigente</option><option>Contrato Expirado</option><option>Contrato com Vigência Terminando em 90 dias</option></select><button class="button primary" data-filter="contracts">Aplicar filtros</button></div>
-          <article class="panel"><div class="table-wrap"><table class="data-table"><thead><tr><th>Contrato / objeto</th><th>Fornecedor</th><th>Situação</th><th>Fim</th><th class="numeric">Valor atual</th></tr></thead><tbody id="contracts-body"></tbody></table></div><div class="pagination" id="contracts-pagination"></div></article>
+          <div class="filter-bar"><label class="search-field">⌕<input id="contracts-search" type="search" placeholder="Objeto ou fornecedor…" aria-label="Buscar contratos por objeto ou fornecedor"></label><select id="contracts-status" aria-label="Filtrar situação"><option value="">Todas as situações</option><option>Contrato Vigente</option><option>Contrato Expirado</option><option>Contrato com Vigência Terminando em 90 dias</option></select><button class="button primary" data-filter="contracts">Aplicar filtros</button></div>
+          <article class="panel"><div class="table-wrap"><table class="data-table" aria-label="Contratos municipais"><thead><tr><th>Contrato / objeto</th><th>Fornecedor</th><th>Situação</th><th>Fim</th><th class="numeric">Valor atual</th></tr></thead><tbody id="contracts-body"></tbody></table></div><div class="pagination" id="contracts-pagination"></div></article>
         </section>
 
         <section class="view" id="view-suppliers" data-title="Fornecedores">
@@ -187,8 +187,8 @@
             <article class="panel bi-panel span-6"><div class="bi-chart bi-chart-ranking" id="supplier-payment-chart" role="img" aria-label="Credores que mais receberam pagamentos"></div></article>
           </div>
           <div class="detail-heading"><div><p class="eyebrow">DETALHAMENTO</p><h2>Perfis de fornecedores e execução</h2></div></div>
-          <div class="filter-bar"><label class="search-field">⌕<input id="suppliers-search" type="search" placeholder="Razão social ou CNPJ…"></label><label class="check-field"><input id="contracted-only" type="checkbox"> Somente com contrato</label><button class="button primary" data-filter="suppliers">Aplicar filtros</button></div>
-          <article class="panel"><div class="table-wrap"><table class="data-table"><thead><tr><th>Empresa</th><th>Perfil cadastral</th><th class="numeric">Contratos</th><th class="numeric">Valor contratado</th><th class="numeric">Valor pago</th></tr></thead><tbody id="suppliers-body"></tbody></table></div><div class="pagination" id="suppliers-pagination"></div></article>
+          <div class="filter-bar"><label class="search-field">⌕<input id="suppliers-search" type="search" placeholder="Razão social ou CNPJ…" aria-label="Buscar fornecedores por razão social ou CNPJ"></label><label class="check-field"><input id="contracted-only" type="checkbox"> Somente com contrato</label><button class="button primary" data-filter="suppliers">Aplicar filtros</button></div>
+          <article class="panel"><div class="table-wrap"><table class="data-table" aria-label="Fornecedores"><thead><tr><th>Empresa</th><th>Perfil cadastral</th><th class="numeric">Contratos</th><th class="numeric">Valor contratado</th><th class="numeric">Valor pago</th></tr></thead><tbody id="suppliers-body"></tbody></table></div><div class="pagination" id="suppliers-pagination"></div></article>
         </section>
 
         <section class="view" id="view-agencies" data-title="Órgãos">
@@ -203,8 +203,8 @@
             <article class="panel bi-panel span-12"><div class="bi-chart bi-chart-tall" id="agencies-value-chart" role="img" aria-label="Valores estimados, homologados e contratados por órgão"></div></article>
           </div>
           <div class="detail-heading"><div><p class="eyebrow">DETALHAMENTO</p><h2>Unidades compradoras</h2></div></div>
-          <div class="filter-bar"><label class="search-field">⌕<input id="agencies-search" type="search" placeholder="Buscar órgão…"></label><button class="button primary" data-filter="agencies">Aplicar filtro</button></div>
-          <article class="panel"><div class="table-wrap"><table class="data-table"><thead><tr><th>Órgão</th><th class="numeric">Licitações</th><th class="numeric">Abertas</th><th class="numeric">Contratos</th><th class="numeric">Valor contratado</th></tr></thead><tbody id="agencies-body"></tbody></table></div><div class="pagination" id="agencies-pagination"></div></article>
+          <div class="filter-bar"><label class="search-field">⌕<input id="agencies-search" type="search" placeholder="Buscar órgão…" aria-label="Buscar órgãos"></label><button class="button primary" data-filter="agencies">Aplicar filtro</button></div>
+          <article class="panel"><div class="table-wrap"><table class="data-table" aria-label="Órgãos municipais"><thead><tr><th>Órgão</th><th class="numeric">Licitações</th><th class="numeric">Abertas</th><th class="numeric">Contratos</th><th class="numeric">Valor contratado</th></tr></thead><tbody id="agencies-body"></tbody></table></div><div class="pagination" id="agencies-pagination"></div></article>
         </section>
 
         <section class="view" id="view-expenses" data-title="Execução financeira">
@@ -220,8 +220,8 @@
             <article class="panel bi-panel span-6"><div class="bi-chart bi-chart-ranking" id="expenses-rate-chart" role="img" aria-label="Taxa de pagamento dos principais credores"></div></article>
           </div>
           <div class="detail-heading"><div><p class="eyebrow">DETALHAMENTO</p><h2>Execução por empresa</h2></div></div>
-          <div class="filter-bar"><label class="search-field">⌕<input id="expenses-search" type="search" placeholder="Buscar empresa…"></label><button class="button primary" data-filter="expenses">Aplicar filtro</button></div>
-          <article class="panel"><div class="table-wrap"><table class="data-table"><thead><tr><th>Empresa</th><th>CNPJ</th><th class="numeric">Registros</th><th class="numeric">Empenhado</th><th class="numeric">Pago</th><th>Execução</th></tr></thead><tbody id="expenses-body"></tbody></table></div><div class="pagination" id="expenses-pagination"></div></article>
+          <div class="filter-bar"><label class="search-field">⌕<input id="expenses-search" type="search" placeholder="Buscar empresa…" aria-label="Buscar empresas na execução financeira"></label><button class="button primary" data-filter="expenses">Aplicar filtro</button></div>
+          <article class="panel"><div class="table-wrap"><table class="data-table" aria-label="Execução financeira por empresa"><thead><tr><th>Empresa</th><th>CNPJ</th><th class="numeric">Registros</th><th class="numeric">Empenhado</th><th class="numeric">Pago</th><th>Execução</th></tr></thead><tbody id="expenses-body"></tbody></table></div><div class="pagination" id="expenses-pagination"></div></article>
         </section>
 
         <section class="view" id="view-quality" data-title="Qualidade dos dados">
