@@ -168,15 +168,38 @@ class AnalyticsDatabase:
         try:
             placeholders = ",".join("?" for _ in cnpjs)
             result = connection.execute(
-                "SELECT cnpj, legal_name, trade_name, registration_status, company_size, "
-                "primary_cnae, primary_cnae_description, city, state "
-                f"FROM company_profile WHERE cnpj IN ({placeholders})",
+                "SELECT p.cnpj, p.legal_name, p.trade_name, p.registration_status, "
+                "p.status_on, p.opened_on, p.headquarters_type, p.company_size, "
+                "p.legal_nature, p.share_capital, p.primary_cnae, "
+                "p.primary_cnae_description, p.secondary_cnaes_json, p.state, p.city, "
+                "p.district, p.street, p.street_number, p.address_extra, p.postal_code, "
+                "p.phone_primary, p.phone_secondary, p.email, p.tax_regime, "
+                "p.tax_regime_year, p.municipality_ibge, p.simples, p.mei, "
+                "p.source_url AS profile_source_url, p.fetched_at AS profile_fetched_at, "
+                "l.longitude, l.latitude, l.provider AS geocode_provider, "
+                "l.source_url AS geocode_source_url "
+                "FROM company_profile p LEFT JOIN company_location l USING (postal_code) "
+                f"WHERE p.cnpj IN ({placeholders})",
                 cnpjs,
             )
             columns = [item[0] for item in result.description]
             return {str(row[0]): dict(zip(columns, row, strict=True)) for row in result.fetchall()}
         finally:
             connection.close()
+
+    def market_companies(self) -> tuple[int, list[dict[str, Any]]]:
+        metrics = self.rows(
+            "SELECT cnpj, supplier_name, contract_count, contract_value, expense_records, "
+            "committed_value, paid_value FROM gold_suppliers "
+            "ORDER BY paid_value DESC, contract_value DESC"
+        )
+        profiles = self.profiles([str(item["cnpj"]) for item in metrics])
+        items = [
+            {**item, **profiles[str(item["cnpj"])]}
+            for item in metrics
+            if str(item["cnpj"]) in profiles
+        ]
+        return len(metrics), items
 
 
 def _paged(
@@ -506,6 +529,29 @@ def create_app(
             )
         except (duckdb.Error, FileNotFoundError) as exc:
             raise HTTPException(status_code=503, detail="analytics database unavailable") from exc
+
+    @application.get("/api/market-intelligence")
+    def market_intelligence() -> dict[str, Any]:
+        try:
+            supplier_count, items = database.market_companies()
+        except (duckdb.Error, FileNotFoundError) as exc:
+            raise HTTPException(status_code=503, detail="enrichment database unavailable") from exc
+        return {
+            "coverage": {
+                "supplier_count": supplier_count,
+                "enriched_count": len(items),
+                "located_count": sum(
+                    item["longitude"] is not None and item["latitude"] is not None
+                    for item in items
+                ),
+                "phone_count": sum(bool(item["phone_primary"]) for item in items),
+            },
+            "items": items,
+            "sources": [
+                {"name": "Portal da Transparência de Cuiabá", "url": PORTAL_URL},
+                {"name": "BrasilAPI — CNPJ e CEP v2", "url": "https://brasilapi.com.br/docs"},
+            ],
+        }
 
     @application.get("/api/pipeline")
     def pipeline() -> list[dict[str, Any]]:

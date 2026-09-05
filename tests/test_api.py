@@ -52,6 +52,35 @@ def _analytics(path: Path) -> None:
     connection.close()
 
 
+def _enrichment(path: Path) -> None:
+    connection = duckdb.connect(str(path))
+    connection.execute(files("radar_publico").joinpath("migrations/004_enrichment.sql").read_text())
+    connection.execute(
+        """
+        INSERT INTO company_profile(
+          cnpj, cnpj_root, legal_name, trade_name, registration_status, company_size,
+          legal_nature, share_capital, primary_cnae, primary_cnae_description,
+          secondary_cnaes_json, state, city, district, street, street_number, postal_code,
+          phone_primary, email, tax_regime, tax_regime_year, municipality_ibge, simples, mei,
+          source_url, fetched_at
+        ) VALUES (
+          '00000000000191', '00000000', 'Empresa Ágil Ltda', 'Ágil', 'ATIVA',
+          'MICRO EMPRESA', 'Sociedade Empresária Limitada', 50000, '6201501',
+          'Desenvolvimento de programas de computador sob encomenda', '[]', 'MT', 'CUIABA',
+          'CENTRO', 'RUA TESTE', '10', '78000001', '65999999999', 'contato@agil.test',
+          'LUCRO PRESUMIDO', 2025, 5103403, true, false,
+          'https://brasilapi.com.br/api/cnpj/v1/00000000000191', current_timestamp
+        );
+        INSERT INTO company_location VALUES (
+          '78000001', 'MT', 'Cuiabá', 'Centro', 'Rua Teste', 'open-cep',
+          -56.0979, -15.6014, 'https://brasilapi.com.br/api/cep/v2/78000001',
+          current_timestamp
+        );
+        """
+    )
+    connection.close()
+
+
 def test_health_metadata_and_summary(tmp_path: Path) -> None:
     analytics = tmp_path / "analytics.duckdb"
     _analytics(analytics)
@@ -134,6 +163,35 @@ def test_person_creditors_are_separate_masked_and_not_enriched(tmp_path: Path) -
     }
     assert "profile" not in payload["items"][0]
     assert "00000000191" not in response.text
+
+
+def test_market_intelligence_connects_company_metrics_profile_and_location(
+    tmp_path: Path,
+) -> None:
+    analytics = tmp_path / "analytics.duckdb"
+    enrichment = tmp_path / "enrichment.duckdb"
+    _analytics(analytics)
+    _enrichment(enrichment)
+    client = TestClient(create_app(analytics, enrichment))
+
+    response = client.get("/api/market-intelligence")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["coverage"] == {
+        "supplier_count": 2,
+        "enriched_count": 1,
+        "located_count": 1,
+        "phone_count": 1,
+    }
+    company = payload["items"][0]
+    assert company["supplier_name"] == "Empresa Ágil"
+    assert company["primary_cnae"] == "6201501"
+    assert company["phone_primary"] == "65999999999"
+    assert company["tax_regime"] == "LUCRO PRESUMIDO"
+    assert company["longitude"] == -56.0979
+    assert company["latitude"] == -15.6014
+    assert "qsa" not in company
+    assert payload["sources"][0]["name"] == "Portal da Transparência de Cuiabá"
 
 
 def test_quality_and_pipeline_are_available(tmp_path: Path) -> None:
