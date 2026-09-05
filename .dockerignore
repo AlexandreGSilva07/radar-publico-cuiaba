@@ -1,0 +1,13 @@
+.git
+.github
+.venv
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.playwright-cli
+data
+dist
+__pycache__
+*.pyc
+.env
+

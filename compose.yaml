@@ -1,0 +1,14 @@
+services:
+  dashboard:
+    build:
+      context: .
+    init: true
+    read_only: true
+    ports:
+      - "${RADAR_PORT:-8000}:8000"
+    volumes:
+      - ./data:/app/data:ro
+    tmpfs:
+      - /tmp:size=64m
+    restart: unless-stopped
+
