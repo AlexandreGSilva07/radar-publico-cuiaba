@@ -113,10 +113,14 @@ def test_builds_atomic_silver_and_suppresses_cpf(tmp_path: Path) -> None:
     assert report.rejected["contratos"] == 1
     connection = duckdb.connect(str(output), read_only=True)
     assert connection.execute("SELECT cnpj FROM silver_contracts").fetchone()[0] == "00000000000191"
-    assert connection.execute(
-        "SELECT document_type, cnpj FROM silver_expenses"
-    ).fetchone() == ("cpf", None)
-    assert connection.execute(
-        "SELECT cpf_suppressed_records FROM data_quality WHERE resource='despesas'"
-    ).fetchone()[0] == 1
+    assert connection.execute("SELECT document_type, cnpj FROM silver_expenses").fetchone() == (
+        "cpf",
+        None,
+    )
+    assert (
+        connection.execute(
+            "SELECT cpf_suppressed_records FROM data_quality WHERE resource='despesas'"
+        ).fetchone()[0]
+        == 1
+    )
     connection.close()

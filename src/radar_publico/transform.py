@@ -105,9 +105,7 @@ def _snapshots(
                 if root not in path.parents:
                     raise TransformError("referência Bronze escapou da raiz")
                 objects.append((int(page), str(content_hash), path))
-            snapshots.append(
-                Snapshot(resource, year, run_id, expected_records, tuple(objects))
-            )
+            snapshots.append(Snapshot(resource, year, run_id, expected_records, tuple(objects)))
     finally:
         connection.close()
     return snapshots
@@ -238,9 +236,7 @@ def _insert_resource(
                 doc_counts[doc_type] += 1
         try:
             converted = converter(record, snapshot.run_id, source_hash)
-            natural_key: object = (
-                converted[:2] if snapshot.resource == "despesas" else converted[0]
-            )
+            natural_key: object = converted[:2] if snapshot.resource == "despesas" else converted[0]
             if natural_key in seen_keys:
                 raise TransformError("chave natural duplicada no snapshot")
             seen_keys.add(natural_key)
