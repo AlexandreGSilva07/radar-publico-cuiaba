@@ -114,6 +114,7 @@ def test_health_metadata_and_summary(tmp_path: Path) -> None:
     assert client.get("/app.js").status_code == 200
     assert client.get("/charts-lib/theme.js").status_code == 200
     assert client.get("/charts-lib/charts.js").status_code == 200
+    assert client.get("/cuiaba-boundary.js").status_code == 200
 
 
 def test_health_reports_missing_database(tmp_path: Path) -> None:
