@@ -78,7 +78,7 @@ Responsável por escolher quais editais e órgãos priorizar. Precisa enxergar r
 1. **Fonte antes de conclusão:** todo indicador deve permitir abrir o registro público de origem.
 2. **Dados brutos imutáveis:** resposta original, horário da coleta, endpoint, parâmetros e hash são preservados.
 3. **Atualização incremental:** não baixar todo o histórico a cada execução.
-4. **CNPJ como chave de empresa:** normalizar CNPJ, mas preservar o documento de origem quando houver CPF ou documento inválido.
+4. **CNPJ como chave de empresa:** normalizar apenas CNPJ válido; CPF é contado como suprimido e nunca copiado para Silver/Gold.
 5. **Sem atribuição especulativa:** relação entre empresas só pode ser afirmada pela mesma raiz CNPJ ou fonte oficial explícita.
 6. **Privacidade por padrão:** não exibir CPF, nome de sócio, telefone ou e-mail de pessoa física.
 7. **Risco com contexto:** sanção é exibida com fonte, período e situação; nunca como rótulo absoluto da empresa.
@@ -220,7 +220,9 @@ empenho
   1 ── N pagamento
 ```
 
-### 8.2 Tabelas Silver mínimas
+### 8.2 Modelo lógico alvo e forma física do MVP
+
+O modelo abaixo orienta a evolução histórica. Para o snapshot MVP, as entidades efetivamente coletadas são materializadas em `silver_contracts`, `silver_procurements` e `silver_expenses`; `data_quality` e `transform_rejections` registram perdas. Essa forma plana mantém as mesmas chaves sem criar dimensões e bridges antes de haver itens/detalhes suficientes.
 
 | Tabela | Chave natural inicial | Conteúdo |
 |---|---|---|
@@ -243,7 +245,7 @@ empenho
 ### 8.3 Regras de identidade e relacionamento
 
 1. CNPJ deve ter somente dígitos e passar por validação de dígito verificador antes de enriquecer.
-2. Documento de CPF, máscara incompleta ou CNPJ inválido permanece como `documento_origem` e não entra em `dim_empresa`.
+2. Documento de CPF, máscara incompleta ou CNPJ inválido é apenas classificado para qualidade; o valor não sai do Bronze e não entra em Silver, Gold, API ou logs.
 3. `cnpj_raiz` é derivado dos oito primeiros dígitos de um CNPJ válido; não substitui o CNPJ do estabelecimento.
 4. Vínculo entre fornecedor do portal e CNPJ recebe `confidence`: `exact`, `normalized_name`, `manual_review` ou `unmatched`.
 5. Dashboard padrão usa somente `exact`; os demais vínculos são revisáveis e não alimentam ranking automaticamente.
@@ -465,12 +467,12 @@ Regras devem produzir `segmento`, `confidence` e `rule_version`. Registros sem c
 
 **Entregáveis:**
 
-- `dim_orgao`, `dim_fornecedor`, `fct_licitacao`, `fct_contrato`;
+- `silver_contracts`, `silver_procurements` e `silver_expenses`;
 - detalhes/itens quando acessíveis;
 - chaves naturais, documentos normalizados e rastreabilidade;
 - testes de unicidade, campos obrigatórios e valores monetários.
 
-**Aceite:** é possível relacionar contrato, órgão e fornecedor e retornar o JSON original que originou cada linha.
+**Aceite:** é possível relacionar contrato, órgão e fornecedor e localizar o objeto Bronze de origem por `source_run_id` e `source_hash`.
 
 ### Fase 3 — execução financeira e enriquecimento CNPJ
 
@@ -478,7 +480,7 @@ Regras devem produzir `segmento`, `confidence` e `rule_version`. Registros sem c
 
 **Entregáveis:**
 
-- credores, empenhos, liquidações e pagamentos;
+- credores com totais de empenho, liquidação e pagamento disponibilizados pela fonte;
 - cache CNPJ e perfis de empresa/estabelecimento;
 - classificação inicial de objetos;
 - vínculo de fornecedor com CNPJ por confiança.
@@ -575,7 +577,7 @@ Cada execução deve registrar:
 
 ## 17. Decisões fechadas para o MVP
 
-1. Janela inicial: ano corrente e dois anos anteriores.
+1. Janela operacional inicial: ano corrente. O backfill dos dois anos anteriores entra após validação do dashboard e junto do filtro global de período, evitando somar janelas distintas sob um único rótulo.
 2. Público: fornecedores PJ e consultorias de licitação, sem vertical obrigatório.
 3. Oferta: dashboard fechado por assinatura, exportação CSV e onboarding assistido.
 4. Atualização: contratos/licitações diária; despesas e CNPJ semanal.
@@ -600,7 +602,7 @@ O frontend sem build separado é uma decisão de velocidade e confiabilidade do 
 
 ### 18.2 Contratos de segurança e identidade
 
-- toda linha analítica referencia `raw_id`, endpoint, índice, horário e hash;
+- toda linha analítica referencia o run e o hash do objeto Bronze; página, endpoint e horário são resolvidos pelo banco operacional;
 - dinheiro usa `DECIMAL(18,2)`; datas sentinela viram `NULL`;
 - CPF não aparece em Silver, Gold, API, tela, CSV ou log;
 - vínculo empresarial só é `exact` com CNPJ de 14 dígitos e DV válido;
@@ -633,3 +635,19 @@ O dashboard final desta execução contém:
 ### 18.5 Execução e recuperação
 
 Cada tarefa coerente recebe testes, commit e push antes da próxima. Dados operacionais e bancos continuam fora do Git. Subagentes não executam implementação; somente uma decisão técnica realmente ambígua pode ser consultada ao GPT-5.6 Sol em `xhigh`.
+
+## 19. Implementação MVP 01
+
+Status em 4 de setembro de 2026: núcleo funcional entregue.
+
+- coleta genérica e retomável para contratos, licitações e despesas por credor;
+- cobertura por run e objetos Bronze gzip validados por SHA-256;
+- Silver DuckDB plana e tipada, escolhida para reduzir complexidade prematura do MVP;
+- Gold com KPIs, oportunidades, vencimentos, órgãos, fornecedores, execução PJ e qualidade;
+- cache BrasilAPI separado, seletivo e não bloqueante;
+- FastAPI somente leitura, filtros parametrizados, paginação e CSV com allowlist;
+- dashboard local sem dependências CDN, responsivo e validado no navegador;
+- `refresh` executa a cadeia integral depois dos gates de cobertura;
+- Docker Compose e CI reproduzível; dados reais permanecem fora do Git.
+
+O snapshot inicial identificou 14 IDs de contrato repetidos entre páginas da própria fonte. Eles são contabilizados como rejeição de chave natural e não duplicam métricas. A licitação de cabeçalho continua sem CNPJ de vencedor; portanto, nenhum match por nome alimenta os indicadores empresariais.
