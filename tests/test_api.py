@@ -16,15 +16,18 @@ def _analytics(path: Path) -> None:
         """
         INSERT INTO analytics_metadata VALUES ('built_at', '2026-09-04T12:00:00Z');
         INSERT INTO silver_procurements(
-          procurement_id, year, search_text, status, estimated_value, awarded_value,
-          has_document, source_run_id, source_hash
-        ) VALUES (1, 2026, 'aquisicao cafe', 'EM ANDAMENTO', 100, 80, true, 'run', 'hash');
-        INSERT INTO silver_contracts(
-          contract_id, year, search_text, supplier_name, document_type, cnpj, status, current_value,
-          has_document, source_run_id, source_hash
+          procurement_id, year, search_text, agency, modality, status, published_on, session_on,
+          estimated_value, awarded_value, has_document, source_run_id, source_hash
         ) VALUES (
-          2, 2026, 'aquisicao cafe', 'Empresa Ágil', 'cnpj', '00000000000191',
-          'Contrato Vigente', 80,
+          1, 2026, 'aquisicao cafe', 'Secretaria Teste', 'PREGÃO ELETRÔNICO - 13',
+          'EM ANDAMENTO', '2026-01-15', '2026-02-01', 100, 80, true, 'run', 'hash'
+        );
+        INSERT INTO silver_contracts(
+          contract_id, year, search_text, agency, supplier_name, document_type, cnpj, status,
+          signed_on, ends_on, category, current_value, has_document, source_run_id, source_hash
+        ) VALUES (
+          2, 2026, 'aquisicao cafe', 'Secretaria Teste', 'Empresa Ágil', 'cnpj',
+          '00000000000191', 'Contrato Vigente', '2026-01-20', '2027-01-20', 'Serviços', 80,
           false, 'run', 'hash'
         );
         INSERT INTO silver_contracts(
@@ -100,6 +103,24 @@ def test_quality_and_pipeline_are_available(tmp_path: Path) -> None:
 
     assert client.get("/api/pipeline").json()[0]["status"] == "EM ANDAMENTO"
     assert client.get("/api/quality").json()[0]["acceptance_rate"] == 100.0
+
+
+def test_analytics_exposes_chart_ready_aggregates(tmp_path: Path) -> None:
+    analytics = tmp_path / "analytics.duckdb"
+    _analytics(analytics)
+    payload = TestClient(create_app(analytics)).get("/api/analytics")
+
+    assert payload.status_code == 200
+    data = payload.json()
+    assert data["procurements_by_month"][0] == {
+        "month": "2026-01",
+        "procurement_count": 1,
+        "estimated_value": "100.00",
+        "awarded_value": "80.00",
+    }
+    assert data["procurement_modalities"][0]["modality"] == "Pregão eletrônico"
+    assert data["top_agencies"][0]["agency"] == "Secretaria Teste"
+    assert data["contract_categories"][0]["category"] == "Serviços"
 
 
 def test_csv_export_is_allowlisted_and_downloadable(tmp_path: Path) -> None:

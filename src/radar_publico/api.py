@@ -45,6 +45,71 @@ EXPORTS = {
     ),
 }
 
+ANALYTICS_QUERIES = {
+    "procurements_by_month": (
+        "SELECT strftime(published_on, '%Y-%m') AS \"month\", count(*) AS procurement_count, "
+        "coalesce(sum(estimated_value), 0) AS estimated_value, "
+        "coalesce(sum(awarded_value), 0) AS awarded_value "
+        "FROM silver_procurements WHERE published_on IS NOT NULL "
+        "GROUP BY 1 ORDER BY 1"
+    ),
+    "contracts_by_month": (
+        "SELECT strftime(signed_on, '%Y-%m') AS \"month\", count(*) AS contract_count, "
+        "coalesce(sum(current_value), 0) AS contract_value "
+        "FROM silver_contracts WHERE signed_on IS NOT NULL GROUP BY 1 ORDER BY 1"
+    ),
+    "procurement_statuses": (
+        "SELECT status, count(*) AS procurement_count, "
+        "coalesce(sum(estimated_value), 0) AS estimated_value, "
+        "coalesce(sum(awarded_value), 0) AS awarded_value "
+        "FROM silver_procurements GROUP BY status ORDER BY procurement_count DESC"
+    ),
+    "procurement_modalities": (
+        "SELECT CASE "
+        "WHEN upper(modality) LIKE '%PREGÃO ELETRÔNICO%' THEN 'Pregão eletrônico' "
+        "WHEN upper(modality) LIKE '%INEXIGIBILIDADE%' THEN 'Inexigibilidade' "
+        "WHEN upper(modality) LIKE '%CONCORRÊNCIA%' THEN 'Concorrência eletrônica' "
+        "WHEN upper(modality) LIKE '%DISPENSA%' THEN 'Dispensa de licitação' "
+        "WHEN upper(modality) LIKE '%COMPRA DIRETA%' THEN 'Compra direta' "
+        "ELSE coalesce(modality, 'Não informado') END AS modality, "
+        "count(*) AS procurement_count, coalesce(sum(estimated_value), 0) AS estimated_value "
+        "FROM silver_procurements GROUP BY 1 ORDER BY procurement_count DESC"
+    ),
+    "top_agencies": (
+        "SELECT agency, procurement_count, open_procurements, contract_count, contract_value, "
+        "estimated_value, awarded_value FROM gold_agencies "
+        "ORDER BY contract_value DESC, estimated_value DESC LIMIT 10"
+    ),
+    "top_suppliers": (
+        "SELECT cnpj, supplier_name, contract_count, contract_value, paid_value "
+        "FROM gold_suppliers WHERE contract_count > 0 "
+        "ORDER BY contract_value DESC, paid_value DESC LIMIT 10"
+    ),
+    "renewals_by_month": (
+        "SELECT strftime(ends_on, '%Y-%m') AS \"month\", count(*) AS contract_count, "
+        "coalesce(sum(current_value), 0) AS contract_value FROM silver_contracts "
+        "WHERE ends_on BETWEEN current_date AND current_date + INTERVAL 365 DAY "
+        "GROUP BY 1 ORDER BY 1"
+    ),
+    "contract_categories": (
+        "SELECT coalesce(category, 'Não informado') AS category, count(*) AS contract_count, "
+        "coalesce(sum(current_value), 0) AS contract_value FROM silver_contracts "
+        "GROUP BY 1 ORDER BY contract_value DESC LIMIT 10"
+    ),
+    "expense_leaders": (
+        "SELECT cnpj, supplier_name, expense_records, committed_value, paid_value, "
+        "round(100 * paid_value / nullif(committed_value, 0), 1) AS payment_rate "
+        "FROM gold_suppliers WHERE committed_value > 0 "
+        "ORDER BY paid_value DESC LIMIT 10"
+    ),
+    "open_opportunities_by_agency": (
+        "SELECT agency, count(*) AS opportunity_count, "
+        "coalesce(sum(estimated_value), 0) AS estimated_value "
+        "FROM gold_opportunities GROUP BY agency "
+        "ORDER BY opportunity_count DESC, estimated_value DESC LIMIT 10"
+    ),
+}
+
 
 class AnalyticsDatabase:
     def __init__(self, path: Path, enrichment_path: Path | None = None) -> None:
@@ -397,6 +462,13 @@ def create_app(
             return database.rows(
                 "SELECT * FROM gold_procurement_pipeline ORDER BY procurement_count DESC"
             )
+        except (duckdb.Error, FileNotFoundError) as exc:
+            raise HTTPException(status_code=503, detail="analytics database unavailable") from exc
+
+    @application.get("/api/analytics")
+    def analytics() -> dict[str, list[dict[str, Any]]]:
+        try:
+            return {name: database.rows(query) for name, query in ANALYTICS_QUERIES.items()}
         except (duckdb.Error, FileNotFoundError) as exc:
             raise HTTPException(status_code=503, detail="analytics database unavailable") from exc
 
