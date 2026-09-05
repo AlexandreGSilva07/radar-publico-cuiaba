@@ -7,6 +7,7 @@ from uuid import uuid4
 import typer
 
 from radar_publico import __version__
+from radar_publico.api import run as run_api
 from radar_publico.collect import CollectionError, collect
 from radar_publico.coverage import reports, require_valid
 from radar_publico.enrich import EnrichmentError, enrich_companies
@@ -172,6 +173,17 @@ def enrich_command(
         f"attempted={report.attempted} enriched={report.enriched} "
         f"failed={report.failed} cached={report.cached}"
     )
+
+
+@app.command("serve")
+def serve_command(
+    host: str = typer.Option("127.0.0.1"),
+    port: int = typer.Option(8000, min=1, max=65535),
+    reload: bool = typer.Option(False),
+) -> None:
+    """Inicia a API e o dashboard local."""
+    run_api(host=host, port=port, reload=reload)
+
 
 
 
