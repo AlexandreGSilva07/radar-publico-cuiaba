@@ -133,15 +133,85 @@ function monthLabel(value, withYear = false) {
   return withYear ? `${name}/${String(year).slice(-2)}` : name;
 }
 
+function monthLongLabel(value) {
+  const [year, month] = String(value).split("-");
+  const names = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+  return `${names[Number(month) - 1] || value} de ${year}`;
+}
+
 function shortName(value, limit = 42) {
   const clean = text(value).replace(/^SECRETARIA MUNICIPAL D[AEOS]*\s+/i, "");
   const readable = clean.toLocaleLowerCase("pt-BR").replace(/(^|[\s,/()-])\p{L}/gu, (letter) => letter.toLocaleUpperCase("pt-BR"));
   return clipped(readable, limit);
 }
 
+function headlineName(value, limit = 30) {
+  return clipped(shortName(value, 100).split(",")[0], limit);
+}
+
 function rounded(value, digits = 1) {
   const scale = 10 ** digits;
   return Math.round((Number(value) + Number.EPSILON) * scale) / scale;
+}
+
+let contextPromise;
+let analyticsPromise;
+
+function getContext(force = false) {
+  if (force || !contextPromise) {
+    contextPromise = Promise.all([api("/api/summary"), api("/api/meta")]);
+  }
+  return contextPromise;
+}
+
+function getAnalytics(force = false) {
+  if (force || !analyticsPromise) analyticsPromise = api("/api/analytics");
+  return analyticsPromise;
+}
+
+function applyContext(summary, metadata) {
+  element("#nav-open-count").textContent = integer.format(summary.open_procurements);
+  element("#last-updated").textContent = dateTime(metadata.dataset.built_at);
+  element("#source-link").href = metadata.source_url;
+
+  element("#dataset-year").textContent = summary.year;
+  element("#kpi-estimated").textContent = money(summary.estimated_value, true);
+  element("#kpi-estimated").title = money(summary.estimated_value);
+  element("#kpi-procurement-count").textContent = `${integer.format(summary.procurement_count)} processos publicados`;
+  element("#kpi-awarded").textContent = money(summary.awarded_value, true);
+  element("#kpi-awarded").title = money(summary.awarded_value);
+  element("#kpi-savings-detail").textContent = `${money(summary.procurement_savings, true)} de economia sobre o estimado`;
+  element("#kpi-open").textContent = integer.format(summary.open_procurements);
+  element("#kpi-contracts").textContent = money(summary.contract_value, true);
+  element("#kpi-contracts").title = money(summary.contract_value);
+  element("#kpi-contract-count").textContent = `${integer.format(summary.contract_count)} contratos analisados`;
+  element("#kpi-paid").textContent = money(summary.paid_value, true);
+  element("#kpi-paid").title = money(summary.paid_value);
+  element("#kpi-creditors").textContent = `${integer.format(summary.creditor_count)} registros financeiros consolidados`;
+
+  element("#opportunities-live").textContent = integer.format(summary.open_procurements);
+  element("#opportunities-estimated").textContent = money(summary.estimated_value, true);
+  element("#contracts-active").textContent = integer.format(summary.active_contracts);
+  element("#contracts-value").textContent = money(summary.contract_value, true);
+  element("#suppliers-enriched").textContent = integer.format(metadata.enriched_companies);
+  element("#suppliers-value").textContent = money(summary.contract_value, true);
+  element("#agencies-procurements").textContent = integer.format(summary.procurement_count);
+  element("#agencies-open").textContent = integer.format(summary.open_procurements);
+  element("#agencies-contracts").textContent = integer.format(summary.contract_count);
+  element("#expenses-committed").textContent = money(summary.committed_value, true);
+  element("#expenses-paid").textContent = money(summary.paid_value, true);
+  element("#expenses-balance").textContent = money(summary.committed_balance, true);
+}
+
+async function loadContext(force = false) {
+  try {
+    const [summary, metadata] = await getContext(force);
+    applyContext(summary, metadata);
+    return [summary, metadata];
+  } catch (error) {
+    contextPromise = undefined;
+    throw error;
+  }
 }
 
 function renderOverviewCharts(summary, analytics) {
@@ -173,8 +243,9 @@ function renderOverviewCharts(summary, analytics) {
     ] }],
   });
 
+  const leadingAgency = analytics.top_agencies[0] || { agency: "Órgão líder" };
   Charts.barList("agency-chart", {
-    title: "Educação lidera o valor contratado",
+    title: `${headlineName(leadingAgency.agency)} lidera o valor contratado`,
     subtitle: `Cinco maiores órgãos · contratos assinados em ${summary.year} · R$ milhões`,
     plotOptions: { barList: { autoHeight: false, valueSuffix: " mi", barHeight: 18, rowGap: 14 } },
     series: [{ name: "Contratado", data: analytics.top_agencies.slice(0, 5).map((item, index) => ({
@@ -204,8 +275,12 @@ function renderOverviewCharts(summary, analytics) {
   });
 
   const renewals = analytics.renewals_by_month;
+  const renewalPeak = renewals.reduce(
+    (leader, item) => item.contract_count > leader.contract_count ? item : leader,
+    { month: `${summary.year}-01`, contract_count: 0 },
+  );
   Charts.column("renewals-chart", {
-    title: "Renovações se concentram no 1º trimestre de 2027",
+    title: renewals.length ? `${monthLongLabel(renewalPeak.month)} concentra ${integer.format(renewalPeak.contract_count)} vencimentos` : "Vencimentos nos próximos 365 dias",
     subtitle: "Contratos com vigência terminando nos próximos 365 dias · quantidade",
     xAxis: { categories: renewals.map((item) => monthLabel(item.month, true)) },
     yAxis: { suffix: "" },
@@ -214,8 +289,9 @@ function renderOverviewCharts(summary, analytics) {
     series: [{ name: "Contratos", color: "#097e5d", data: renewals.map((item) => item.contract_count) }],
   });
 
+  const opportunityLeader = analytics.open_opportunities_by_agency[0] || { agency: "Nenhum órgão" };
   Charts.barList("opportunity-agency-chart", {
-    title: "Saúde concentra as oportunidades abertas",
+    title: `${headlineName(opportunityLeader.agency)} concentra as oportunidades abertas`,
     subtitle: "Processos em andamento, paralisados ou em prorrogação · quantidade",
     plotOptions: { barList: { autoHeight: false, valueSuffix: "", barHeight: 18, rowGap: 14 } },
     series: [{ name: "Oportunidades", data: analytics.open_opportunities_by_agency.slice(0, 5).map((item, index) => ({
@@ -225,31 +301,135 @@ function renderOverviewCharts(summary, analytics) {
   });
 }
 
+function renderOpportunityCharts(analytics) {
+  const opportunityLeader = analytics.open_opportunities_by_agency[0] || { agency: "Nenhum órgão", opportunity_count: 0 };
+  Charts.barList("opportunities-agency-chart", {
+    title: `${headlineName(opportunityLeader.agency)} tem ${integer.format(opportunityLeader.opportunity_count)} oportunidades em movimento`,
+    subtitle: "Processos abertos por órgão comprador · quantidade",
+    plotOptions: { barList: { autoHeight: false, barHeight: 18, rowGap: 13 } },
+    series: [{ name: "Oportunidades", data: analytics.open_opportunities_by_agency.slice(0, 7).map((item, index) => ({
+      name: shortName(item.agency), y: item.opportunity_count,
+      color: index === 0 ? "#3b82f6" : "#8b8d8b",
+    })) }],
+  });
+
+  const leadingModality = analytics.procurement_modalities[0] || { modality: "Nenhuma modalidade" };
+  Charts.barList("modalities-chart", {
+    title: `${shortName(leadingModality.modality, 34)} é a modalidade mais frequente`,
+    subtitle: "Todos os processos publicados no ano · quantidade",
+    plotOptions: { barList: { autoHeight: false, barHeight: 18, rowGap: 13 } },
+    series: [{ name: "Processos", data: analytics.procurement_modalities.map((item, index) => ({
+      name: shortName(item.modality), y: item.procurement_count,
+      color: index === 0 ? "#097e5d" : "#8b8d8b",
+    })) }],
+  });
+}
+
+function renderContractCharts(analytics) {
+  const months = analytics.contracts_by_month;
+  const peakMonth = months.reduce(
+    (leader, item) => Number(item.contract_value) > Number(leader.contract_value) ? item : leader,
+    { month: "2026-01", contract_value: 0 },
+  );
+  Charts.column("contracts-month-chart", {
+    title: months.length ? `${monthLongLabel(peakMonth.month)} concentrou ${money(peakMonth.contract_value, true)} em contratos` : "Contratos assinados por mês",
+    subtitle: "Valor atual dos contratos por mês de assinatura · R$ milhões",
+    xAxis: { categories: months.map((item) => monthLabel(item.month)) },
+    yAxis: { suffix: " mi" },
+    tooltip: { valuePrefix: "R$ ", valueSuffix: " mi", valueDecimals: 1 },
+    plotOptions: { column: { dataLabels: false, pointPadding: 0.1, groupPadding: 0.12 } },
+    series: [{ name: "Contratado", color: "#097e5d", data: months.map((item) => rounded(Number(item.contract_value) / 1e6)) }],
+  });
+
+  const leadingCategory = analytics.contract_categories[0] || { category: "Nenhuma categoria" };
+  Charts.barList("categories-chart", {
+    title: `${shortName(leadingCategory.category, 34)} lidera as categorias`,
+    subtitle: "Cinco maiores categorias por valor atual · R$ milhões",
+    plotOptions: { barList: { autoHeight: false, valueSuffix: " mi", barHeight: 18, rowGap: 14 } },
+    series: [{ name: "Contratado", data: analytics.contract_categories.slice(0, 5).map((item, index) => ({
+      name: shortName(item.category, 48), y: rounded(Number(item.contract_value) / 1e6),
+      color: index === 0 ? "#097e5d" : "#8b8d8b",
+    })) }],
+  });
+}
+
+function renderSupplierCharts(analytics) {
+  const leadingSupplier = analytics.top_suppliers[0] || { supplier_name: "Nenhum fornecedor" };
+  Charts.barList("suppliers-contract-chart", {
+    title: `${shortName(leadingSupplier.supplier_name, 34)} possui a maior carteira`,
+    subtitle: "Seis maiores fornecedores por valor atual · R$ milhões",
+    plotOptions: { barList: { autoHeight: false, valueSuffix: " mi", barHeight: 18, rowGap: 13 } },
+    series: [{ name: "Contratado", data: analytics.top_suppliers.slice(0, 6).map((item, index) => ({
+      name: shortName(item.supplier_name), y: rounded(Number(item.contract_value) / 1e6),
+      color: index === 0 ? "#8067dc" : "#8b8d8b",
+    })) }],
+  });
+
+  Charts.barList("supplier-payment-chart", {
+    title: "Maiores fluxos pagos no exercício",
+    subtitle: "Seis credores com maior valor pago · R$ milhões",
+    plotOptions: { barList: { autoHeight: false, valueSuffix: " mi", barHeight: 18, rowGap: 13 } },
+    series: [{ name: "Pago", data: analytics.expense_leaders.slice(0, 6).map((item, index) => ({
+      name: shortName(item.supplier_name), y: rounded(Number(item.paid_value) / 1e6),
+      color: index === 0 ? "#097e5d" : "#8b8d8b",
+    })) }],
+  });
+}
+
+function renderAgencyCharts(analytics) {
+  const agencies = analytics.top_agencies.slice(0, 8);
+  const firstAgency = agencies[0] || { agency: "Órgãos" };
+  const secondAgency = agencies[1] || { agency: "compradores" };
+  Charts.bar("agencies-value-chart", {
+    title: `${headlineName(firstAgency.agency, 18)} e ${headlineName(secondAgency.agency, 18)} lideram contratos`,
+    subtitle: "Oito maiores órgãos · valores licitados, homologados e contratados · R$ milhões",
+    xAxis: { categories: agencies.map((item) => shortName(item.agency, 34)) },
+    yAxis: { suffix: "" },
+    tooltip: { valuePrefix: "R$ ", valueSuffix: " mi", valueDecimals: 1 },
+    plotOptions: { bar: { dataLabels: false, pointPadding: 0.06, groupPadding: 0.12 } },
+    series: [
+      { name: "Estimado", color: "#a4a7a4", data: agencies.map((item) => rounded(Number(item.estimated_value) / 1e6)) },
+      { name: "Homologado", color: "#3b82f6", data: agencies.map((item) => rounded(Number(item.awarded_value) / 1e6)) },
+      { name: "Contratado", color: "#097e5d", data: agencies.map((item) => rounded(Number(item.contract_value) / 1e6)) },
+    ],
+  });
+}
+
+function renderExpenseCharts(analytics) {
+  const leaders = analytics.expense_leaders.slice(0, 6);
+  const paymentLeader = leaders[0] || { supplier_name: "Nenhum credor", paid_value: 0 };
+  Charts.barList("expenses-leaders-chart", {
+    title: `${shortName(paymentLeader.supplier_name, 32)} recebeu ${money(paymentLeader.paid_value, true)}`,
+    subtitle: "Seis credores com maior valor pago · R$ milhões",
+    plotOptions: { barList: { autoHeight: false, valueSuffix: " mi", barHeight: 18, rowGap: 13 } },
+    series: [{ name: "Pago", data: leaders.map((item, index) => ({
+      name: shortName(item.supplier_name), y: rounded(Number(item.paid_value) / 1e6),
+      color: index === 0 ? "#097e5d" : "#8b8d8b",
+    })) }],
+  });
+
+  const rates = leaders.map((item) => Number(item.payment_rate));
+  const minimumRate = rates.length ? Math.min(...rates) : 0;
+  const maximumRate = rates.length ? Math.max(...rates) : 0;
+  Charts.barList("expenses-rate-chart", {
+    title: `Conversão do empenho em pagamento varia de ${minimumRate.toLocaleString("pt-BR")}% a ${maximumRate.toLocaleString("pt-BR")}%`,
+    subtitle: "Taxa de pagamento dos seis maiores recebedores · percentual",
+    plotOptions: { barList: { autoHeight: false, valueSuffix: "%", barHeight: 18, rowGap: 13 } },
+    series: [{ name: "Taxa paga", data: leaders.map((item) => ({
+      name: shortName(item.supplier_name), y: Number(item.payment_rate),
+      color: Number(item.payment_rate) >= 75 ? "#097e5d" : "#8b8d8b",
+    })) }],
+  });
+}
+
 async function loadOverview(force = false) {
   if (appState.loaded.has("overview") && !force) return;
   showStatus("Atualizando indicadores executivos…");
   try {
-    const [summary, metadata, analytics, renewals] = await Promise.all([
-      api("/api/summary"), api("/api/meta"), api("/api/analytics"),
+    const [[summary], analytics, renewals] = await Promise.all([
+      loadContext(force), getAnalytics(force),
       api("/api/renewals?page_size=6&within_days=365"),
     ]);
-    element("#dataset-year").textContent = summary.year;
-    element("#kpi-estimated").textContent = money(summary.estimated_value, true);
-    element("#kpi-estimated").title = money(summary.estimated_value);
-    element("#kpi-procurement-count").textContent = `${integer.format(summary.procurement_count)} processos publicados`;
-    element("#kpi-awarded").textContent = money(summary.awarded_value, true);
-    element("#kpi-awarded").title = money(summary.awarded_value);
-    element("#kpi-savings-detail").textContent = `${money(summary.procurement_savings, true)} de economia sobre o estimado`;
-    element("#kpi-open").textContent = integer.format(summary.open_procurements);
-    element("#nav-open-count").textContent = integer.format(summary.open_procurements);
-    element("#kpi-contracts").textContent = money(summary.contract_value, true);
-    element("#kpi-contracts").title = money(summary.contract_value);
-    element("#kpi-contract-count").textContent = `${integer.format(summary.contract_count)} contratos analisados`;
-    element("#kpi-paid").textContent = money(summary.paid_value, true);
-    element("#kpi-paid").title = money(summary.paid_value);
-    element("#kpi-creditors").textContent = `${integer.format(summary.creditor_count)} credores consolidados`;
-    element("#last-updated").textContent = dateTime(metadata.dataset.built_at);
-    element("#source-link").href = metadata.source_url;
     renderOverviewCharts(summary, analytics);
     renderRenewals(renewals.items);
     appState.loaded.add("overview");
@@ -267,14 +447,21 @@ async function loadOpportunities(page = 1) {
   showStatus("Consultando oportunidades…");
   const parameters = queryString({ page, page_size: 20, q: element("#opportunities-search").value.trim(), status: element("#opportunities-status").value });
   try {
-    const payload = await api(`/api/opportunities?${parameters}`);
+    const needsCharts = !appState.loaded.has("opportunities");
+    const [payload, analytics] = await Promise.all([
+      api(`/api/opportunities?${parameters}`),
+      needsCharts ? getAnalytics() : Promise.resolve(null),
+    ]);
     appState.pages.opportunities = page;
     element("#opportunities-total").textContent = integer.format(payload.total);
+    const futureSessions = payload.items.map((item) => item.session_on).filter((value) => value && new Date(`${value}T23:59:59`) >= new Date()).sort();
+    element("#opportunities-next").textContent = futureSessions.length ? date(futureSessions[0]) : "Sem data futura";
     element("#opportunities-body").innerHTML = payload.items.length ? payload.items.map((item) => `<tr>
       <td><strong>${html(text(item.number, "s/n"))} / ${html(item.year)}</strong><small title="${html(item.object_text)}">${html(clipped(item.object_text))}</small></td>
       <td><span title="${html(item.agency)}">${html(clipped(item.agency, 42))}</span></td><td>${badge(item.status)}</td><td>${date(item.session_on)}</td>
       <td class="numeric"><strong>${html(money(item.estimated_value))}</strong></td><td><div class="score"><strong>${integer.format(item.relevance_score)}</strong><span>/ 115</span></div></td></tr>`).join("") : emptyRow(6);
     renderPagination("#opportunities-pagination", payload, loadOpportunities);
+    if (analytics) renderOpportunityCharts(analytics);
     appState.loaded.add("opportunities"); showStatus("Oportunidades atualizadas.", "success");
   } catch (error) { showError(error); }
 }
@@ -283,7 +470,11 @@ async function loadContracts(page = 1) {
   showStatus("Consultando contratos…");
   const parameters = queryString({ page, page_size: 20, q: element("#contracts-search").value.trim(), status: element("#contracts-status").value });
   try {
-    const payload = await api(`/api/contracts?${parameters}`);
+    const needsCharts = !appState.loaded.has("contracts");
+    const [payload, analytics] = await Promise.all([
+      api(`/api/contracts?${parameters}`),
+      needsCharts ? getAnalytics() : Promise.resolve(null),
+    ]);
     appState.pages.contracts = page;
     element("#contracts-total").textContent = integer.format(payload.total);
     element("#contracts-body").innerHTML = payload.items.length ? payload.items.map((item) => `<tr>
@@ -291,6 +482,7 @@ async function loadContracts(page = 1) {
       <td><strong>${html(clipped(item.supplier_name, 48))}</strong><small>${html(cnpj(item.cnpj))}</small></td><td>${badge(item.status)}</td><td>${date(item.ends_on)}</td>
       <td class="numeric"><strong>${html(money(item.current_value))}</strong><small>${item.procurement_linked ? "Licitação vinculada" : "Sem vínculo no recorte"}</small></td></tr>`).join("") : emptyRow(5);
     renderPagination("#contracts-pagination", payload, loadContracts);
+    if (analytics) renderContractCharts(analytics);
     appState.loaded.add("contracts"); showStatus("Contratos atualizados.", "success");
   } catch (error) { showError(error); }
 }
@@ -299,9 +491,14 @@ async function loadSuppliers(page = 1) {
   showStatus("Consultando fornecedores…");
   const parameters = queryString({ page, page_size: 20, q: element("#suppliers-search").value.trim(), contracted_only: element("#contracted-only").checked });
   try {
-    const payload = await api(`/api/suppliers?${parameters}`);
+    const needsCharts = !appState.loaded.has("suppliers");
+    const [payload, analytics] = await Promise.all([
+      api(`/api/suppliers?${parameters}`),
+      needsCharts ? getAnalytics() : Promise.resolve(null),
+    ]);
     appState.pages.suppliers = page;
     element("#suppliers-total").textContent = integer.format(payload.total);
+    if (needsCharts) element("#suppliers-creditors").textContent = integer.format(payload.total);
     element("#suppliers-body").innerHTML = payload.items.length ? payload.items.map((item) => {
       const profile = item.profile;
       const profileText = profile ? `${text(profile.company_size, "Porte não informado")} · ${text(profile.city, "—")}/${text(profile.state, "—")}` : "Aguardando enriquecimento";
@@ -311,6 +508,7 @@ async function loadSuppliers(page = 1) {
         <td class="numeric"><strong>${html(money(item.paid_value))}</strong></td></tr>`;
     }).join("") : emptyRow(5);
     renderPagination("#suppliers-pagination", payload, loadSuppliers);
+    if (analytics) renderSupplierCharts(analytics);
     appState.loaded.add("suppliers"); showStatus("Fornecedores atualizados.", "success");
   } catch (error) { showError(error); }
 }
@@ -319,7 +517,11 @@ async function loadAgencies(page = 1) {
   showStatus("Consultando órgãos…");
   const parameters = queryString({ page, page_size: 20, q: element("#agencies-search").value.trim() });
   try {
-    const payload = await api(`/api/agencies?${parameters}`);
+    const needsCharts = !appState.loaded.has("agencies");
+    const [payload, analytics] = await Promise.all([
+      api(`/api/agencies?${parameters}`),
+      needsCharts ? getAnalytics() : Promise.resolve(null),
+    ]);
     appState.pages.agencies = page;
     element("#agencies-total").textContent = integer.format(payload.total);
     element("#agencies-body").innerHTML = payload.items.length ? payload.items.map((item) => `<tr>
@@ -327,6 +529,7 @@ async function loadAgencies(page = 1) {
       <td class="numeric">${item.open_procurements ? badge(item.open_procurements) : "—"}</td><td class="numeric">${integer.format(item.contract_count)}</td>
       <td class="numeric"><strong>${html(money(item.contract_value))}</strong></td></tr>`).join("") : emptyRow(5);
     renderPagination("#agencies-pagination", payload, loadAgencies);
+    if (analytics) renderAgencyCharts(analytics);
     appState.loaded.add("agencies"); showStatus("Órgãos atualizados.", "success");
   } catch (error) { showError(error); }
 }
@@ -335,7 +538,11 @@ async function loadExpenses(page = 1) {
   showStatus("Consultando execução financeira…");
   const parameters = queryString({ page, page_size: 20, q: element("#expenses-search").value.trim() });
   try {
-    const payload = await api(`/api/expenses?${parameters}`);
+    const needsCharts = !appState.loaded.has("expenses");
+    const [payload, analytics] = await Promise.all([
+      api(`/api/expenses?${parameters}`),
+      needsCharts ? getAnalytics() : Promise.resolve(null),
+    ]);
     appState.pages.expenses = page;
     element("#expenses-total").textContent = integer.format(payload.total);
     element("#expenses-body").innerHTML = payload.items.length ? payload.items.map((item) => {
@@ -345,6 +552,7 @@ async function loadExpenses(page = 1) {
         <td><div class="progress"><div class="progress-track"><i style="width:${ratio}%"></i></div><small>${ratio.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</small></div></td></tr>`;
     }).join("") : emptyRow(6);
     renderPagination("#expenses-pagination", payload, loadExpenses);
+    if (analytics) renderExpenseCharts(analytics);
     appState.loaded.add("expenses"); showStatus("Execução financeira atualizada.", "success");
   } catch (error) { showError(error); }
 }
@@ -376,6 +584,7 @@ function navigate(viewName) {
   element("#page-context").textContent = titles[target].toUpperCase();
   element("#export-button").href = `/api/export/${exportsByView[target]}.csv`;
   setMenu(false);
+  loadContext().catch(showError);
   loaders[target]();
 }
 
@@ -393,13 +602,19 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") setMenu(false);
 });
 element("#refresh-button").addEventListener("click", () => {
-  if (appState.currentView === "overview") loadOverview(true);
-  else loaders[appState.currentView](appState.pages[appState.currentView] || 1);
+  const view = appState.currentView;
+  appState.loaded.delete(view);
+  if (view === "overview") {
+    loadOverview(true);
+  } else {
+    analyticsPromise = undefined;
+    loadContext(true).catch(showError);
+    loaders[view](appState.pages[view] || 1);
+  }
 });
 document.querySelectorAll("[data-filter]").forEach((button) => button.addEventListener("click", () => loaders[button.dataset.filter](1)));
 document.querySelectorAll(".filter-bar input").forEach((input) => input.addEventListener("keydown", (event) => {
   if (event.key === "Enter") event.currentTarget.closest(".filter-bar").querySelector("[data-filter]").click();
 }));
-document.querySelectorAll("[data-go]").forEach((link) => link.addEventListener("click", () => navigate(link.dataset.go)));
 window.addEventListener("hashchange", () => navigate(location.hash.slice(1)));
 navigate(location.hash.slice(1));

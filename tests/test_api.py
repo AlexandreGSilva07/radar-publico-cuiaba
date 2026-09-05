@@ -67,6 +67,11 @@ def test_health_metadata_and_summary(tmp_path: Path) -> None:
     assert 'id="procurements-month-chart"' in dashboard.text
     assert 'id="finance-stage-chart"' in dashboard.text
     assert 'id="renewals-chart"' in dashboard.text
+    assert 'id="opportunities-agency-chart"' in dashboard.text
+    assert 'id="contracts-month-chart"' in dashboard.text
+    assert 'id="suppliers-contract-chart"' in dashboard.text
+    assert 'id="agencies-value-chart"' in dashboard.text
+    assert 'id="expenses-leaders-chart"' in dashboard.text
     assert 'id="sidebar-backdrop"' in dashboard.text
     assert client.get("/styles.css").status_code == 200
     assert client.get("/app.js").status_code == 200

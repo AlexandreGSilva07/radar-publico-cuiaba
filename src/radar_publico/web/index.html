@@ -108,7 +108,7 @@
             <article class="kpi-card tone-blue"><div class="kpi-top"><span class="kpi-label">ESTIMADO EM LICITAÇÕES</span><span class="metric-dot"></span></div><strong id="kpi-estimated">—</strong><small id="kpi-procurement-count">— processos publicados</small></article>
             <article class="kpi-card tone-teal"><div class="kpi-top"><span class="kpi-label">VALOR HOMOLOGADO</span><span class="metric-dot"></span></div><strong id="kpi-awarded">—</strong><small id="kpi-savings-detail">— de economia sobre o estimado</small></article>
             <article class="kpi-card tone-purple"><div class="kpi-top"><span class="kpi-label">CARTEIRA CONTRATUAL</span><span class="metric-dot"></span></div><strong id="kpi-contracts">—</strong><small id="kpi-contract-count">— contratos analisados</small></article>
-            <article class="kpi-card tone-amber"><div class="kpi-top"><span class="kpi-label">PAGAMENTOS REALIZADOS</span><span class="metric-dot"></span></div><strong id="kpi-paid">—</strong><small id="kpi-creditors">— credores consolidados</small></article>
+            <article class="kpi-card tone-amber"><div class="kpi-top"><span class="kpi-label">PAGAMENTOS REALIZADOS</span><span class="metric-dot"></span></div><strong id="kpi-paid">—</strong><small id="kpi-creditors">— registros financeiros consolidados</small></article>
             <article class="kpi-card kpi-opportunity"><div class="kpi-top"><span class="kpi-label">OPORTUNIDADES ABERTAS</span><span class="metric-dot"></span></div><strong id="kpi-open">—</strong><small>processos em movimento para prospecção</small></article>
           </div>
 
@@ -147,6 +147,12 @@
             <article><span class="insight-icon green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16H6zM9 2v4M15 2v4M8.5 10h7M8.5 14h4"/></svg></span><div><small>PRÓXIMA SESSÃO</small><strong id="opportunities-next">—</strong><p>data mais próxima no radar</p></div></article>
             <article><span class="insight-icon amber"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18 9 13l3 3 7-9M15 7h4v4"/></svg></span><div><small>VALOR ESTIMADO</small><strong id="opportunities-estimated">—</strong><p>potencial mapeado no ano</p></div></article>
           </div>
+          <div class="workspace-intro"><div><p class="eyebrow">LEITURA DO MERCADO</p><h2>Onde estão as disputas e como o município compra</h2></div><small>Visão anual · os filtros abaixo atuam no detalhamento</small></div>
+          <div class="dashboard-grid workspace-charts">
+            <article class="panel bi-panel span-6"><div class="bi-chart bi-chart-ranking" id="opportunities-agency-chart" role="img" aria-label="Oportunidades abertas por órgão"></div></article>
+            <article class="panel bi-panel span-6"><div class="bi-chart bi-chart-ranking" id="modalities-chart" role="img" aria-label="Distribuição das licitações por modalidade"></div></article>
+          </div>
+          <div class="detail-heading"><div><p class="eyebrow">DETALHAMENTO</p><h2>Processos disponíveis para prospecção</h2></div></div>
           <div class="filter-bar"><label class="search-field">⌕<input id="opportunities-search" type="search" placeholder="Buscar por objeto…"></label><select id="opportunities-status" aria-label="Filtrar situação"><option value="">Todas as situações</option><option>EM ANDAMENTO</option><option>PARALISADO</option><option>PRORROGAÇÃO</option></select><button class="button primary" data-filter="opportunities">Aplicar filtros</button></div>
           <article class="panel"><div class="table-wrap"><table class="data-table"><thead><tr><th>Oportunidade</th><th>Órgão</th><th>Situação</th><th>Sessão</th><th class="numeric">Valor estimado</th><th>Relevância</th></tr></thead><tbody id="opportunities-body"></tbody></table></div><div class="pagination" id="opportunities-pagination"></div></article>
         </section>
@@ -158,6 +164,12 @@
             <article><span class="insight-icon purple"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v12H4zM7 4h10v3M8 12h8"/></svg></span><div><small>CARTEIRA TOTAL</small><strong id="contracts-value">—</strong><p>valor atualmente contratado</p></div></article>
             <article><span class="insight-icon amber"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><div><small>JANELA COMERCIAL</small><strong>365 dias</strong><p>renovações monitoradas</p></div></article>
           </div>
+          <div class="workspace-intro"><div><p class="eyebrow">DINÂMICA CONTRATUAL</p><h2>Ritmo das assinaturas e categorias de maior valor</h2></div><small>Visão anual · os filtros abaixo atuam no detalhamento</small></div>
+          <div class="dashboard-grid workspace-charts">
+            <article class="panel bi-panel span-6"><div class="bi-chart" id="contracts-month-chart" role="img" aria-label="Contratos assinados por mês"></div></article>
+            <article class="panel bi-panel span-6"><div class="bi-chart bi-chart-ranking" id="categories-chart" role="img" aria-label="Categorias de contratos por valor"></div></article>
+          </div>
+          <div class="detail-heading"><div><p class="eyebrow">DETALHAMENTO</p><h2>Carteira de contratos</h2></div></div>
           <div class="filter-bar"><label class="search-field">⌕<input id="contracts-search" type="search" placeholder="Objeto ou fornecedor…"></label><select id="contracts-status" aria-label="Filtrar situação"><option value="">Todas as situações</option><option>Contrato Vigente</option><option>Contrato Expirado</option><option>Contrato com Vigência Terminando em 90 dias</option></select><button class="button primary" data-filter="contracts">Aplicar filtros</button></div>
           <article class="panel"><div class="table-wrap"><table class="data-table"><thead><tr><th>Contrato / objeto</th><th>Fornecedor</th><th>Situação</th><th>Fim</th><th class="numeric">Valor atual</th></tr></thead><tbody id="contracts-body"></tbody></table></div><div class="pagination" id="contracts-pagination"></div></article>
         </section>
@@ -165,10 +177,16 @@
         <section class="view" id="view-suppliers" data-title="Fornecedores">
           <div class="section-heading"><div><p class="eyebrow">MERCADO</p><h1>Fornecedores</h1><p>Empresas identificadas por CNPJ, contratos e pagamentos agregados.</p></div><div class="metric-pill"><span id="suppliers-total">—</span> CNPJs</div></div>
           <div class="insight-strip">
-            <article><span class="insight-icon blue"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.4-3.4 2.2-5 5.5-5s5.1 1.6 5.5 5M16 6.5a3 3 0 0 1 0 5.8M16.5 14c2.4.4 3.7 2 4 5"/></svg></span><div><small>CREDORES MAPEADOS</small><strong id="suppliers-creditors">—</strong><p>empresas na execução pública</p></div></article>
+            <article><span class="insight-icon blue"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.4-3.4 2.2-5 5.5-5s5.1 1.6 5.5 5M16 6.5a3 3 0 0 1 0 5.8M16.5 14c2.4.4 3.7 2 4 5"/></svg></span><div><small>CNPJS MAPEADOS</small><strong id="suppliers-creditors">—</strong><p>empresas identificadas na base</p></div></article>
             <article><span class="insight-icon green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 3v5c0 5.3-3.2 8.6-8 10-4.8-1.4-8-4.7-8-10V6zM8.5 12l2.2 2.2 4.8-5"/></svg></span><div><small>PERFIS ENRIQUECIDOS</small><strong id="suppliers-enriched">—</strong><p>cadastros consultados por CNPJ</p></div></article>
             <article><span class="insight-icon purple"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18 9 13l3 3 7-9M15 7h4v4"/></svg></span><div><small>MERCADO CONTRATADO</small><strong id="suppliers-value">—</strong><p>valor da carteira municipal</p></div></article>
           </div>
+          <div class="workspace-intro"><div><p class="eyebrow">CONCORRÊNCIA</p><h2>Empresas com maior carteira e fluxo de pagamentos</h2></div><small>Visão anual · os filtros abaixo atuam no detalhamento</small></div>
+          <div class="dashboard-grid workspace-charts">
+            <article class="panel bi-panel span-6"><div class="bi-chart bi-chart-ranking" id="suppliers-contract-chart" role="img" aria-label="Fornecedores com maior valor contratado"></div></article>
+            <article class="panel bi-panel span-6"><div class="bi-chart bi-chart-ranking" id="supplier-payment-chart" role="img" aria-label="Credores que mais receberam pagamentos"></div></article>
+          </div>
+          <div class="detail-heading"><div><p class="eyebrow">DETALHAMENTO</p><h2>Perfis de fornecedores e execução</h2></div></div>
           <div class="filter-bar"><label class="search-field">⌕<input id="suppliers-search" type="search" placeholder="Razão social ou CNPJ…"></label><label class="check-field"><input id="contracted-only" type="checkbox"> Somente com contrato</label><button class="button primary" data-filter="suppliers">Aplicar filtros</button></div>
           <article class="panel"><div class="table-wrap"><table class="data-table"><thead><tr><th>Empresa</th><th>Perfil cadastral</th><th class="numeric">Contratos</th><th class="numeric">Valor contratado</th><th class="numeric">Valor pago</th></tr></thead><tbody id="suppliers-body"></tbody></table></div><div class="pagination" id="suppliers-pagination"></div></article>
         </section>
@@ -180,6 +198,11 @@
             <article><span class="insight-icon green"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg></span><div><small>EM ANDAMENTO</small><strong id="agencies-open">—</strong><p>compras ainda disputáveis</p></div></article>
             <article><span class="insight-icon blue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h6M9 17h6"/></svg></span><div><small>CONTRATOS</small><strong id="agencies-contracts">—</strong><p>vínculos analisados</p></div></article>
           </div>
+          <div class="workspace-intro"><div><p class="eyebrow">DEMANDA PÚBLICA</p><h2>Comparação do mercado licitado e contratado por órgão</h2></div><small>Valores em R$ milhões · oito maiores compradores</small></div>
+          <div class="dashboard-grid workspace-charts">
+            <article class="panel bi-panel span-12"><div class="bi-chart bi-chart-tall" id="agencies-value-chart" role="img" aria-label="Valores estimados, homologados e contratados por órgão"></div></article>
+          </div>
+          <div class="detail-heading"><div><p class="eyebrow">DETALHAMENTO</p><h2>Unidades compradoras</h2></div></div>
           <div class="filter-bar"><label class="search-field">⌕<input id="agencies-search" type="search" placeholder="Buscar órgão…"></label><button class="button primary" data-filter="agencies">Aplicar filtro</button></div>
           <article class="panel"><div class="table-wrap"><table class="data-table"><thead><tr><th>Órgão</th><th class="numeric">Licitações</th><th class="numeric">Abertas</th><th class="numeric">Contratos</th><th class="numeric">Valor contratado</th></tr></thead><tbody id="agencies-body"></tbody></table></div><div class="pagination" id="agencies-pagination"></div></article>
         </section>
@@ -191,6 +214,12 @@
             <article><span class="insight-icon green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v12H4zM7 12h10M8 16h3"/></svg></span><div><small>VALOR PAGO</small><strong id="expenses-paid">—</strong><p>recursos já transferidos</p></div></article>
             <article><span class="insight-icon amber"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><div><small>SALDO A PAGAR</small><strong id="expenses-balance">—</strong><p>diferença ainda em aberto</p></div></article>
           </div>
+          <div class="workspace-intro"><div><p class="eyebrow">FLUXO FINANCEIRO</p><h2>Quem recebeu mais e quanto do empenho virou pagamento</h2></div><small>Visão anual · pessoas físicas permanecem suprimidas</small></div>
+          <div class="dashboard-grid workspace-charts">
+            <article class="panel bi-panel span-6"><div class="bi-chart bi-chart-ranking" id="expenses-leaders-chart" role="img" aria-label="Credores com maior valor pago"></div></article>
+            <article class="panel bi-panel span-6"><div class="bi-chart bi-chart-ranking" id="expenses-rate-chart" role="img" aria-label="Taxa de pagamento dos principais credores"></div></article>
+          </div>
+          <div class="detail-heading"><div><p class="eyebrow">DETALHAMENTO</p><h2>Execução por empresa</h2></div></div>
           <div class="filter-bar"><label class="search-field">⌕<input id="expenses-search" type="search" placeholder="Buscar empresa…"></label><button class="button primary" data-filter="expenses">Aplicar filtro</button></div>
           <article class="panel"><div class="table-wrap"><table class="data-table"><thead><tr><th>Empresa</th><th>CNPJ</th><th class="numeric">Registros</th><th class="numeric">Empenhado</th><th class="numeric">Pago</th><th>Execução</th></tr></thead><tbody id="expenses-body"></tbody></table></div><div class="pagination" id="expenses-pagination"></div></article>
         </section>
