@@ -6,6 +6,7 @@ import typer
 
 from radar_publico import __version__
 from radar_publico.sources import ManifestError, load_manifest
+from radar_publico.state import State
 
 app = typer.Typer(add_completion=False, invoke_without_command=True, no_args_is_help=True)
 
@@ -31,6 +32,14 @@ def validate_config(
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
     typer.echo(f"Manifesto válido: {', '.join(manifest.resources)}")
+
+
+@app.command("init-state")
+def init_state(path: Path = typer.Option(Path("data/ops.duckdb"))) -> None:
+    """Inicializa o banco operacional local."""
+    with State(path):
+        pass
+    typer.echo(f"Estado pronto: {path}")
 
 
 if __name__ == "__main__":
