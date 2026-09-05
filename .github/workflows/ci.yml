@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+          python-version: "3.12"
+
+      - name: Install locked dependencies
+        run: uv sync --locked --all-groups
+
+      - name: Lint and formatting
+        run: |
+          uv run ruff check src tests
+          uv run ruff format --check src tests
+          node --check src/radar_publico/web/app.js
+
+      - name: Type check
+        run: uv run mypy src
+
+      - name: Test
+        run: uv run pytest
+
+      - name: Build distributable package
+        run: uv build
