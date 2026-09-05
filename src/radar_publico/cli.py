@@ -1,5 +1,6 @@
 """Linha de comando do Radar Público Cuiabá."""
 
+import json
 from pathlib import Path
 from uuid import uuid4
 
@@ -7,9 +8,10 @@ import typer
 
 from radar_publico import __version__
 from radar_publico.collect import CollectionError, collect
+from radar_publico.coverage import reports, require_valid
 from radar_publico.http import HttpError, PublicClient
 from radar_publico.sources import ManifestError, load_manifest
-from radar_publico.state import State
+from radar_publico.state import State, StateError
 
 app = typer.Typer(add_completion=False, invoke_without_command=True, no_args_is_help=True)
 
@@ -95,6 +97,26 @@ def collect_command(
         f"pages={report.collected_pages}/{report.expected_pages} "
         f"records={report.collected_records}/{report.expected_records}"
     )
+
+
+@app.command("coverage")
+def coverage_command(
+    state_path: Path = typer.Option(Path("data/ops.duckdb")),
+    run_id: str | None = typer.Option(None),
+    validate: bool = typer.Option(False, help="Falha se o run não estiver completo."),
+) -> None:
+    """Exibe cobertura local em JSON."""
+    try:
+        with State(state_path) as state:
+            if validate:
+                if run_id is None:
+                    raise typer.BadParameter("--run-id é obrigatório com --validate")
+                require_valid(state, run_id)
+            payload = [item.dict() for item in reports(state, run_id)]
+    except StateError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
