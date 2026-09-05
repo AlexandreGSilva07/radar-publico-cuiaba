@@ -110,6 +110,7 @@ def test_health_metadata_and_summary(tmp_path: Path) -> None:
     assert 'id="people-stages-chart"' in dashboard.text
     assert "CPF mascarado" in dashboard.text
     assert 'id="sidebar-backdrop"' in dashboard.text
+    assert 'id="report-button"' in dashboard.text
     assert client.get("/styles.css").status_code == 200
     assert client.get("/app.js").status_code == 200
     assert client.get("/charts-lib/theme.js").status_code == 200
@@ -194,6 +195,13 @@ def test_market_intelligence_connects_company_metrics_profile_and_location(
     assert company["latitude"] == -15.6014
     assert "qsa" not in company
     assert payload["sources"][0]["name"] == "Portal da Transparência de Cuiabá"
+
+    export = client.get("/api/export/market-intelligence.csv")
+    assert export.status_code == 200
+    assert "65999999999" in export.text
+    assert "LUCRO PRESUMIDO" in export.text
+    assert "-56.0979" in export.text
+    assert "qsa" not in export.text
 
 
 def test_quality_and_pipeline_are_available(tmp_path: Path) -> None:

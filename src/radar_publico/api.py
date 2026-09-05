@@ -614,6 +614,24 @@ def create_app(
 
     @application.get("/api/export/{dataset}.csv", response_class=Response)
     def export_csv(dataset: str) -> Response:
+        if dataset == "market-intelligence":
+            try:
+                _, companies = database.market_companies()
+            except (duckdb.Error, FileNotFoundError) as exc:
+                raise HTTPException(
+                    status_code=503, detail="enrichment database unavailable"
+                ) from exc
+            fields = (
+                "cnpj", "supplier_name", "legal_name", "trade_name", "registration_status",
+                "company_size", "legal_nature", "market_sector", "primary_cnae",
+                "primary_cnae_description", "tax_regime", "tax_regime_year", "simples", "mei",
+                "phone_primary", "phone_secondary", "email", "street", "street_number",
+                "district", "postal_code", "city", "state", "longitude", "latitude",
+                "contract_count", "contract_value", "expense_records", "committed_value",
+                "paid_value", "profile_source_url", "geocode_source_url",
+            )
+            rows = [{field: company.get(field) for field in fields} for company in companies]
+            return _csv_response(dataset, rows)
         query = EXPORTS.get(dataset)
         if query is None:
             raise HTTPException(status_code=404, detail="dataset de exportação inexistente")

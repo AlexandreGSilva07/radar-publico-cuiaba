@@ -15,7 +15,7 @@ const exportsByView = {
   overview: "opportunities",
   opportunities: "opportunities",
   contracts: "contracts",
-  suppliers: "suppliers",
+  suppliers: "market-intelligence",
   agencies: "agencies",
   expenses: "expenses",
   people: "person-creditors",
@@ -27,6 +27,12 @@ const appState = {
   loaded: new Set(),
   pages: { opportunities: 1, contracts: 1, suppliers: 1, agencies: 1, expenses: 1, people: 1 },
 };
+
+const marketState = {
+  q: "", city: "", district: "", market_sector: "", company_size: "",
+  registration_status: "", map_coordinate: "",
+};
+let marketMapLabel = "";
 
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency", currency: "BRL", maximumFractionDigits: 2,
@@ -73,6 +79,15 @@ function dateTime(value) {
 function cnpj(value) {
   const digits = String(value ?? "").replace(/\D/g, "");
   return digits.length === 14 ? digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5") : text(value, "—");
+}
+function phone(value) {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  if (digits.length === 11) return digits.replace(/^(\d{2})(\d{5})(\d{4})$/, "($1) $2-$3");
+  if (digits.length === 10) return digits.replace(/^(\d{2})(\d{4})(\d{4})$/, "($1) $2-$3");
+  return text(value, "—");
+}
+function normalized(value) {
+  return String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
 }
 function clipped(value, length = 105) {
   const clean = text(value);
@@ -158,6 +173,7 @@ function rounded(value, digits = 1) {
 
 let contextPromise;
 let analyticsPromise;
+let marketPromise;
 
 function getContext(force = false) {
   if (force || !contextPromise) {
@@ -169,6 +185,11 @@ function getContext(force = false) {
 function getAnalytics(force = false) {
   if (force || !analyticsPromise) analyticsPromise = api("/api/analytics");
   return analyticsPromise;
+}
+
+function getMarket(force = false) {
+  if (force || !marketPromise) marketPromise = api("/api/market-intelligence");
+  return marketPromise;
 }
 
 function applyContext(summary, metadata) {
@@ -195,8 +216,6 @@ function applyContext(summary, metadata) {
   element("#opportunities-estimated").textContent = money(summary.estimated_value, true);
   element("#contracts-active").textContent = integer.format(summary.active_contracts);
   element("#contracts-value").textContent = money(summary.contract_value, true);
-  element("#suppliers-enriched").textContent = integer.format(metadata.enriched_companies);
-  element("#suppliers-value").textContent = money(summary.contract_value, true);
   element("#agencies-procurements").textContent = integer.format(summary.procurement_count);
   element("#agencies-open").textContent = integer.format(summary.open_procurements);
   element("#agencies-contracts").textContent = integer.format(summary.contract_count);
@@ -359,26 +378,228 @@ function renderContractCharts(analytics) {
   });
 }
 
-function renderSupplierCharts(analytics) {
-  const leadingSupplier = analytics.top_suppliers[0] || { supplier_name: "Nenhum fornecedor" };
-  Charts.barList("suppliers-contract-chart", {
-    title: `${shortName(leadingSupplier.supplier_name, 34)} possui a maior carteira`,
-    subtitle: "Seis maiores fornecedores por valor atual · R$ milhões",
+function renderSupplierCharts(items) {
+  const leaders = [...items].sort((a, b) => Number(b.paid_value) - Number(a.paid_value)).slice(0, 6);
+  const leader = leaders[0] || { supplier_name: "Nenhuma empresa", paid_value: 0 };
+  Charts.barList("supplier-payment-chart", {
+    title: `${shortName(leader.supplier_name, 34)} lidera o valor pago no recorte`,
+    subtitle: "Empresas enriquecidas · execução municipal · R$ milhões",
     plotOptions: { barList: { autoHeight: false, valueSuffix: " mi", barHeight: 18, rowGap: 13 } },
-    series: [{ name: "Contratado", data: analytics.top_suppliers.slice(0, 6).map((item, index) => ({
-      name: shortName(item.supplier_name), y: rounded(Number(item.contract_value) / 1e6),
-      color: index === 0 ? "#8067dc" : "#8b8d8b",
+    series: [{ name: "Pago", data: leaders.map((item, index) => ({
+      name: shortName(item.trade_name || item.supplier_name),
+      y: rounded(Number(item.paid_value) / 1e6, 2),
+      color: index === 0 ? Charts.theme.colors[1] : Charts.theme.muted,
     })) }],
   });
 
-  Charts.barList("supplier-payment-chart", {
-    title: "Maiores fluxos pagos no exercício",
-    subtitle: "Seis empresas com maior valor pago · R$ milhões",
-    plotOptions: { barList: { autoHeight: false, valueSuffix: " mi", barHeight: 18, rowGap: 13 } },
-    series: [{ name: "Pago", data: analytics.expense_leaders.slice(0, 6).map((item, index) => ({
-      name: shortName(item.supplier_name), y: rounded(Number(item.paid_value) / 1e6),
-      color: index === 0 ? "#097e5d" : "#8b8d8b",
-    })) }],
+  const points = items.filter((item) => Number(item.contract_value) > 0 || Number(item.paid_value) > 0);
+  const distinctContractValues = new Set(
+    points.map((item) => rounded(Number(item.contract_value) / 1e6, 2)),
+  );
+  Charts.scatter("suppliers-contract-chart", {
+    title: "Contratos e pagamentos revelam perfis comerciais distintos",
+    subtitle: "Cada ponto é uma empresa enriquecida · R$ milhões",
+    xAxis: { title: "Valor contratado", suffix: " mi" },
+    yAxis: { title: "Valor pago", suffix: " mi" },
+    tooltip: { valuePrefix: "R$ ", valueSuffix: " mi", valueDecimals: 2 },
+    series: [{
+      name: "Empresas",
+      color: Charts.theme.colors[2],
+      regression: points.length > 2 && distinctContractValues.size > 1,
+      showLabels: false,
+      data: points.map((item) => ({
+        name: item.trade_name || item.supplier_name,
+        x: rounded(Number(item.contract_value) / 1e6, 2),
+        y: rounded(Number(item.paid_value) / 1e6, 2),
+      })),
+    }],
+  });
+}
+
+function marketFiltered(items, ignoredDimension = "") {
+  const query = normalized(marketState.q);
+  return items.filter((item) => {
+    if (query) {
+      const haystack = normalized([
+        item.supplier_name, item.legal_name, item.trade_name, item.cnpj,
+        item.primary_cnae, item.primary_cnae_description, item.market_sector,
+        item.phone_primary, item.phone_secondary, item.email, item.city,
+        item.district, item.postal_code,
+      ].join(" "));
+      const queryDigits = query.replace(/\D/g, "");
+      const digitMatch = queryDigits.length >= 3
+        && haystack.replace(/\D/g, "").includes(queryDigits);
+      if (!haystack.includes(query) && !digitMatch) return false;
+    }
+    if (marketState.map_coordinate) {
+      const coordinate = `${Number(item.longitude).toFixed(5)},${Number(item.latitude).toFixed(5)}`;
+      if (coordinate !== marketState.map_coordinate) return false;
+    }
+    return ["city", "district", "market_sector", "company_size", "registration_status"].every(
+      (dimension) => dimension === ignoredDimension || !marketState[dimension]
+        || item[dimension] === marketState[dimension],
+    );
+  });
+}
+
+function marketAggregate(items, dimension) {
+  const grouped = new Map();
+  items.forEach((item) => {
+    const label = text(item[dimension], "Não informado");
+    const current = grouped.get(label) || { label, paid: 0, companies: 0 };
+    current.paid += Number(item.paid_value) || 0;
+    current.companies += 1;
+    grouped.set(label, current);
+  });
+  return [...grouped.values()].sort((a, b) => b.paid - a.paid || b.companies - a.companies);
+}
+
+function renderMarketDimension(selector, items, dimension) {
+  const rows = marketAggregate(marketFiltered(items, dimension), dimension).slice(0, 7);
+  const maximum = Math.max(...rows.map((row) => row.paid), 1);
+  element(selector).innerHTML = rows.length ? rows.map((row) => {
+    const active = marketState[dimension] === row.label;
+    return `<button class="dimension-row${active ? " active" : ""}" type="button" data-market-dimension="${html(dimension)}" data-market-value="${html(row.label)}" aria-pressed="${active}">
+      <span><strong>${html(shortName(row.label, 44))}</strong><small>${integer.format(row.companies)} empresas</small></span>
+      <b>${html(money(row.paid, true))}</b><i><span style="width:${Math.max(2, row.paid / maximum * 100)}%"></span></i>
+    </button>`;
+  }).join("") : `<div class="dimension-empty">Nenhuma categoria neste recorte.</div>`;
+}
+
+function renderMarketMap(items) {
+  const boundary = window.CUIABA_BOUNDARY || [];
+  const width = 1000;
+  const height = 560;
+  const padding = 42;
+  const longitudes = boundary.map((point) => point[0]);
+  const latitudes = boundary.map((point) => point[1]);
+  const minLongitude = Math.min(...longitudes);
+  const maxLongitude = Math.max(...longitudes);
+  const minLatitude = Math.min(...latitudes);
+  const maxLatitude = Math.max(...latitudes);
+  const located = items.filter((item) => {
+    const longitude = Number(item.longitude);
+    const latitude = Number(item.latitude);
+    return normalized(item.city) === "cuiaba" && Number.isFinite(longitude)
+      && Number.isFinite(latitude) && longitude >= minLongitude && longitude <= maxLongitude
+      && latitude >= minLatitude && latitude <= maxLatitude;
+  });
+  const locationLongitudes = located.length
+    ? located.map((item) => Number(item.longitude)) : [minLongitude, maxLongitude];
+  const locationLatitudes = located.length
+    ? located.map((item) => Number(item.latitude)) : [minLatitude, maxLatitude];
+  const longitudeSpan = Math.max(Math.max(...locationLongitudes) - Math.min(...locationLongitudes), 0.012);
+  const latitudeSpan = Math.max(Math.max(...locationLatitudes) - Math.min(...locationLatitudes), 0.012);
+  const urbanBounds = {
+    minLongitude: Math.min(...locationLongitudes) - longitudeSpan * 0.12,
+    maxLongitude: Math.max(...locationLongitudes) + longitudeSpan * 0.12,
+    minLatitude: Math.min(...locationLatitudes) - latitudeSpan * 0.12,
+    maxLatitude: Math.max(...locationLatitudes) + latitudeSpan * 0.12,
+  };
+  const project = (longitude, latitude) => ({
+    x: padding + (longitude - urbanBounds.minLongitude) / (urbanBounds.maxLongitude - urbanBounds.minLongitude) * (width - padding * 2),
+    y: padding + (urbanBounds.maxLatitude - latitude) / (urbanBounds.maxLatitude - urbanBounds.minLatitude) * (height - padding * 2),
+  });
+  const inset = { x: 825, y: 26, width: 138, height: 112, padding: 8 };
+  const projectInset = (longitude, latitude) => ({
+    x: inset.x + inset.padding + (longitude - minLongitude) / (maxLongitude - minLongitude)
+      * (inset.width - inset.padding * 2),
+    y: inset.y + inset.padding + (maxLatitude - latitude) / (maxLatitude - minLatitude)
+      * (inset.height - inset.padding * 2),
+  });
+  const insetPath = boundary.map((point, index) => {
+    const projected = projectInset(point[0], point[1]);
+    return `${index ? "L" : "M"}${projected.x.toFixed(1)},${projected.y.toFixed(1)}`;
+  }).join(" ") + " Z";
+  const insetUrbanStart = projectInset(urbanBounds.minLongitude, urbanBounds.maxLatitude);
+  const insetUrbanEnd = projectInset(urbanBounds.maxLongitude, urbanBounds.minLatitude);
+  const grouped = new Map();
+  located.forEach((item) => {
+    const longitude = Number(item.longitude);
+    const latitude = Number(item.latitude);
+    const key = `${longitude.toFixed(5)},${latitude.toFixed(5)}`;
+    const current = grouped.get(key) || {
+      key, longitude, latitude, companies: 0, paid: 0, districts: new Set(),
+    };
+    current.companies += 1;
+    current.paid += Number(item.paid_value) || 0;
+    if (item.district) current.districts.add(item.district);
+    grouped.set(key, current);
+  });
+  const clusters = [...grouped.values()];
+  const maximum = Math.max(...clusters.map((item) => item.paid), 1);
+  const markers = clusters.map((cluster) => {
+    const point = project(cluster.longitude, cluster.latitude);
+    const size = 15 + Math.sqrt(Math.max(0, cluster.paid) / maximum) * 19
+      + Math.min(8, Math.sqrt(cluster.companies));
+    const district = [...cluster.districts].slice(0, 2).join(" / ") || "CEP geocodificado";
+    const label = `${district} · ${integer.format(cluster.companies)} ${cluster.companies === 1 ? "empresa" : "empresas"} · ${money(cluster.paid)} pagos`;
+    return `<button class="map-marker${cluster.companies > 1 ? " cluster" : ""}" type="button" style="--x:${point.x / width * 100}%;--y:${point.y / height * 100}%;--size:${size}px;--z:${cluster.companies + 2}" data-market-coordinate="${html(cluster.key)}" data-market-label="${html(`${district} · ${integer.format(cluster.companies)} empresas`)}" aria-label="Filtrar por ${html(label)}" title="${html(label)}"><span>${cluster.companies > 1 ? integer.format(cluster.companies) : ""}</span></button>`;
+  }).join("");
+  element("#market-map").innerHTML = `<svg viewBox="0 0 ${width} ${height}" aria-hidden="true"><defs><pattern id="map-grid" width="54" height="54" patternUnits="userSpaceOnUse"><path d="M54 0H0V54" fill="none" stroke="currentColor" stroke-opacity=".08"/></pattern></defs><rect width="100%" height="100%" fill="url(#map-grid)"/><g class="map-inset"><rect class="map-inset-frame" x="${inset.x}" y="${inset.y}" width="${inset.width}" height="${inset.height}" rx="10"/><path class="map-inset-shape" d="${insetPath}"/><rect class="map-inset-viewport" x="${insetUrbanStart.x.toFixed(1)}" y="${insetUrbanStart.y.toFixed(1)}" width="${Math.max(3, insetUrbanEnd.x - insetUrbanStart.x).toFixed(1)}" height="${Math.max(3, insetUrbanEnd.y - insetUrbanStart.y).toFixed(1)}"/><text class="map-inset-label" x="${inset.x + 9}" y="${inset.y + inset.height + 17}">MUNICÍPIO</text></g><text x="44" y="520">CUIABÁ · ÁREA URBANA AMPLIADA</text></svg><span class="map-zoom-label">VISÃO URBANA</span>${markers}${located.length ? "" : '<div class="map-empty">Nenhuma sede geocodificada em Cuiabá neste recorte.</div>'}`;
+  element("#market-map-count").textContent = `${integer.format(located.length)} sedes · ${integer.format(clusters.length)} pontos`;
+}
+
+function renderMarketTable(items) {
+  const sorted = [...items].sort((a, b) => Number(b.paid_value) - Number(a.paid_value));
+  element("#market-table-count").textContent = `${integer.format(sorted.length)} resultados enriquecidos`;
+  element("#suppliers-body").innerHTML = sorted.length ? sorted.slice(0, 30).map((item) => {
+    const address = [item.street, item.street_number, item.district].filter(Boolean).join(", ");
+    const contact = item.phone_primary
+      ? `<a href="tel:${html(item.phone_primary)}"><strong>${html(phone(item.phone_primary))}</strong></a>`
+      : "<strong>Sem telefone</strong>";
+    const email = item.email ? `<small title="${html(item.email)}">${html(clipped(item.email, 34))}</small>` : "<small>E-mail não informado</small>";
+    return `<tr><td><strong>${html(clipped(item.trade_name || item.legal_name || item.supplier_name, 54))}</strong><small>${html(cnpj(item.cnpj))} · ${html(item.market_sector)}</small></td>
+      <td>${badge(item.registration_status)}<small>${html(text(item.company_size))} · ${html(text(item.tax_regime, item.simples ? "Simples Nacional" : "Regime não informado"))}</small></td>
+      <td>${contact}${email}</td><td><strong>${html(`${text(item.city, "—")}/${text(item.state, "—")}`)}</strong><small title="${html(address)}">${html(clipped(address, 42))}</small></td>
+      <td class="numeric"><strong>${integer.format(item.contract_count)}</strong><small>${html(money(item.contract_value))}</small></td><td class="numeric"><strong>${html(money(item.paid_value))}</strong><small>${html(clipped(item.primary_cnae_description, 42))}</small></td></tr>`;
+  }).join("") : emptyRow(6, "Nenhuma empresa enriquecida atende a este cruzamento.");
+}
+
+function renderMarketActiveFilters() {
+  const labels = {
+    q: "Busca", city: "Cidade", district: "Bairro", market_sector: "Nicho",
+    company_size: "Porte", registration_status: "Situação", map_coordinate: "Mapa",
+  };
+  const active = Object.entries(marketState).filter(([, value]) => value);
+  element("#market-active-filters").innerHTML = active.length
+    ? `<span>Recorte ativo:</span>${active.map(([key, value]) => `<button type="button" data-remove-market-filter="${html(key)}">${html(labels[key])}: ${html(shortName(key === "map_coordinate" ? marketMapLabel : value, 34))} ×</button>`).join("")}`
+    : "<span>Sem filtros: exibindo todo o conjunto enriquecido.</span>";
+}
+
+function renderMarket(payload) {
+  const items = marketFiltered(payload.items);
+  const phoneCount = items.filter((item) => item.phone_primary).length;
+  const locationCount = items.filter((item) => item.longitude !== null && item.latitude !== null).length;
+  const paid = items.reduce((sum, item) => sum + Number(item.paid_value || 0), 0);
+  element("#suppliers-coverage").textContent = `${integer.format(payload.coverage.enriched_count)} de ${integer.format(payload.coverage.supplier_count)} enriquecidas`;
+  element("#market-company-count").textContent = integer.format(items.length);
+  element("#market-phone-count").textContent = integer.format(phoneCount);
+  element("#market-location-count").textContent = integer.format(locationCount);
+  element("#market-paid-value").textContent = money(paid, true);
+  renderMarketDimension("#market-sector-chart", payload.items, "market_sector");
+  renderMarketDimension("#market-city-chart", payload.items, "city");
+  renderMarketDimension("#market-size-chart", payload.items, "company_size");
+  renderMarketMap(items);
+  renderSupplierCharts(items);
+  renderMarketTable(items);
+  renderMarketActiveFilters();
+}
+
+function populateMarketFilters(items) {
+  const dimensions = {
+    "#market-city": ["city", "Todas"],
+    "#market-district": ["district", "Todos"],
+    "#market-sector": ["market_sector", "Todos"],
+    "#market-size": ["company_size", "Todos"],
+    "#market-status": ["registration_status", "Todas"],
+  };
+  Object.entries(dimensions).forEach(([selector, [dimension, emptyLabel]]) => {
+    const select = element(selector);
+    const values = [...new Set(items.map((item) => item[dimension]).filter(Boolean))]
+      .sort((a, b) => String(a).localeCompare(String(b), "pt-BR"));
+    select.innerHTML = `<option value="">${emptyLabel}</option>${values.map((value) => `<option value="${html(value)}">${html(shortName(value, 52))}</option>`).join("")}`;
+    select.value = marketState[dimension];
   });
 }
 
@@ -458,13 +679,16 @@ async function rerenderCurrentCharts() {
   const view = appState.currentView;
   if (!appState.loaded.has(view) || view === "quality") return;
   try {
+    if (view === "suppliers") {
+      renderMarket(await getMarket());
+      return;
+    }
     const analytics = await getAnalytics();
     if (view === "overview") {
       const [summary] = await getContext();
       renderOverviewCharts(summary, analytics);
     } else if (view === "opportunities") renderOpportunityCharts(analytics);
     else if (view === "contracts") renderContractCharts(analytics);
-    else if (view === "suppliers") renderSupplierCharts(analytics);
     else if (view === "agencies") renderAgencyCharts(analytics);
     else if (view === "expenses") renderExpenseCharts(analytics);
     else if (view === "people") {
@@ -541,29 +765,14 @@ async function loadContracts(page = 1) {
   } catch (error) { showError(error); }
 }
 
-async function loadSuppliers(page = 1) {
-  showStatus("Consultando fornecedores…");
-  const parameters = queryString({ page, page_size: 20, q: element("#suppliers-search").value.trim(), contracted_only: element("#contracted-only").checked });
+async function loadSuppliers() {
+  showStatus("Conectando contratos, pagamentos e perfis empresariais…");
   try {
-    const needsCharts = !appState.loaded.has("suppliers");
-    const [payload, analytics] = await Promise.all([
-      api(`/api/suppliers?${parameters}`),
-      needsCharts ? getAnalytics() : Promise.resolve(null),
-    ]);
-    appState.pages.suppliers = page;
-    element("#suppliers-total").textContent = integer.format(payload.total);
-    if (needsCharts) element("#suppliers-creditors").textContent = integer.format(payload.total);
-    element("#suppliers-body").innerHTML = payload.items.length ? payload.items.map((item) => {
-      const profile = item.profile;
-      const profileText = profile ? `${text(profile.company_size, "Porte não informado")} · ${text(profile.city, "—")}/${text(profile.state, "—")}` : "Aguardando enriquecimento";
-      return `<tr><td><strong>${html(clipped(profile?.legal_name || item.supplier_name, 55))}</strong><small>${html(cnpj(item.cnpj))}</small></td>
-        <td>${profile ? badge(profile.registration_status) : badge("Não enriquecido")}<small title="${html(profile?.primary_cnae_description)}">${html(clipped(profileText, 52))}</small></td>
-        <td class="numeric">${integer.format(item.contract_count)}</td><td class="numeric"><strong>${html(money(item.contract_value))}</strong></td>
-        <td class="numeric"><strong>${html(money(item.paid_value))}</strong></td></tr>`;
-    }).join("") : emptyRow(5);
-    renderPagination("#suppliers-pagination", payload, loadSuppliers);
-    if (analytics) renderSupplierCharts(analytics);
-    appState.loaded.add("suppliers"); showStatus("Fornecedores atualizados.", "success");
+    const payload = await getMarket();
+    populateMarketFilters(payload.items);
+    renderMarket(payload);
+    appState.loaded.add("suppliers");
+    showStatus("Inteligência empresarial conectada.", "success");
   } catch (error) { showError(error); }
 }
 
@@ -652,6 +861,49 @@ async function loadQuality() {
 }
 
 const loaders = { overview: loadOverview, opportunities: loadOpportunities, contracts: loadContracts, suppliers: loadSuppliers, agencies: loadAgencies, expenses: loadExpenses, people: loadPeople, quality: loadQuality };
+let reportInProgress = false;
+async function generatePdfReport() {
+  if (reportInProgress) return;
+  reportInProgress = true;
+  const currentView = appState.currentView;
+  const button = element("#report-button");
+  const originalLabel = button.innerHTML;
+  button.disabled = true;
+  button.textContent = "Preparando…";
+  showStatus("Montando todas as páginas do relatório…");
+  document.body.classList.add("report-building");
+  try {
+    await Promise.all([
+      loadOverview(true), loadOpportunities(1), loadContracts(1), loadSuppliers(),
+      loadAgencies(1), loadExpenses(1), loadPeople(1), loadQuality(),
+    ]);
+    const [[summary], analytics, market] = await Promise.all([
+      getContext(), getAnalytics(), getMarket(),
+    ]);
+    renderOverviewCharts(summary, analytics);
+    renderOpportunityCharts(analytics);
+    renderContractCharts(analytics);
+    renderMarket(market);
+    renderAgencyCharts(analytics);
+    renderExpenseCharts(analytics);
+    renderPeopleCharts(summary, analytics);
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    showStatus("Relatório pronto. Escolha “Salvar como PDF” na janela de impressão.", "success");
+    window.addEventListener("afterprint", () => {
+      document.body.classList.remove("report-building");
+      navigate(currentView);
+    }, { once: true });
+    window.print();
+  } catch (error) {
+    document.body.classList.remove("report-building");
+    showError(error);
+  } finally {
+    button.disabled = false;
+    button.innerHTML = originalLabel;
+    reportInProgress = false;
+  }
+}
+
 function navigate(viewName) {
   const target = titles[viewName] ? viewName : "overview";
   appState.currentView = target;
@@ -689,14 +941,79 @@ element("#refresh-button").addEventListener("click", () => {
     loadOverview(true);
   } else {
     analyticsPromise = undefined;
+    if (view === "suppliers") marketPromise = undefined;
     loadContext(true).catch(showError);
     loaders[view](appState.pages[view] || 1);
   }
 });
+element("#report-button").addEventListener("click", generatePdfReport);
 document.querySelectorAll("[data-filter]").forEach((button) => button.addEventListener("click", () => loaders[button.dataset.filter](1)));
 document.querySelectorAll(".filter-bar input").forEach((input) => input.addEventListener("keydown", (event) => {
   if (event.key === "Enter") event.currentTarget.closest(".filter-bar").querySelector("[data-filter]").click();
 }));
+
+const marketSelectDimensions = {
+  "market-city": "city",
+  "market-district": "district",
+  "market-sector": "market_sector",
+  "market-size": "company_size",
+  "market-status": "registration_status",
+};
+function updateMarketView() {
+  getMarket().then(renderMarket).catch(showError);
+}
+Object.entries(marketSelectDimensions).forEach(([id, dimension]) => {
+  element(`#${id}`).addEventListener("change", (event) => {
+    marketState[dimension] = event.currentTarget.value;
+    updateMarketView();
+  });
+});
+let marketSearchTimer;
+element("#market-search").addEventListener("input", (event) => {
+  clearTimeout(marketSearchTimer);
+  marketState.q = event.currentTarget.value.trim();
+  marketSearchTimer = setTimeout(updateMarketView, 160);
+});
+element("#market-clear").addEventListener("click", () => {
+  Object.keys(marketState).forEach((key) => { marketState[key] = ""; });
+  marketMapLabel = "";
+  element("#market-search").value = "";
+  Object.keys(marketSelectDimensions).forEach((id) => { element(`#${id}`).value = ""; });
+  updateMarketView();
+});
+element("#view-suppliers").addEventListener("click", (event) => {
+  const dimensionButton = event.target.closest("[data-market-dimension]");
+  const mapButton = event.target.closest("[data-market-coordinate]");
+  const companyButton = event.target.closest("[data-market-company]");
+  const removeButton = event.target.closest("[data-remove-market-filter]");
+  if (dimensionButton) {
+    const dimension = dimensionButton.dataset.marketDimension;
+    const value = dimensionButton.dataset.marketValue;
+    marketState[dimension] = marketState[dimension] === value ? "" : value;
+    const selectId = Object.entries(marketSelectDimensions)
+      .find(([, candidate]) => candidate === dimension)?.[0];
+    if (selectId) element(`#${selectId}`).value = marketState[dimension];
+    updateMarketView();
+  } else if (mapButton) {
+    const coordinate = mapButton.dataset.marketCoordinate;
+    marketState.map_coordinate = marketState.map_coordinate === coordinate ? "" : coordinate;
+    marketMapLabel = marketState.map_coordinate ? mapButton.dataset.marketLabel : "";
+    updateMarketView();
+  } else if (companyButton) {
+    marketState.q = companyButton.dataset.marketCompany;
+    element("#market-search").value = marketState.q;
+    updateMarketView();
+  } else if (removeButton) {
+    const dimension = removeButton.dataset.removeMarketFilter;
+    marketState[dimension] = "";
+    if (dimension === "map_coordinate") marketMapLabel = "";
+    if (dimension === "q") element("#market-search").value = "";
+    const selectId = Object.entries(marketSelectDimensions)
+      .find(([, candidate]) => candidate === dimension)?.[0];
+    if (selectId) element(`#${selectId}`).value = "";
+    updateMarketView();
+  }
+});
 let resizeTimer;
 window.addEventListener("resize", () => {
   clearTimeout(resizeTimer);

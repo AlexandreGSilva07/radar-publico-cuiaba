@@ -2071,6 +2071,330 @@ td small {
   white-space: nowrap;
 }
 
+:where(button, a, input, select):focus-visible {
+  outline: 3px solid rgb(59 130 246 / 38%);
+  outline-offset: 2px;
+}
+
+.market-insights {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.market-filterbar {
+  display: grid;
+  grid-template-columns: minmax(230px, 1.5fr) repeat(5, minmax(104px, 0.72fr)) auto;
+  gap: 8px;
+  margin: -7px 0 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: rgb(255 255 255 / 96%);
+  box-shadow: var(--shadow-sm);
+}
+
+.market-filterbar > label:not(.search-field) {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px 9px 4px;
+  border: 1px solid #dbe3e0;
+  border-radius: 9px;
+  background: #f7f9f8;
+}
+
+.market-filterbar label > span {
+  color: var(--muted-light);
+  font-size: 0.45rem;
+  font-weight: 850;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.market-filterbar select {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: var(--ink-soft);
+  background: transparent;
+  font-size: 0.66rem;
+}
+
+.active-filters {
+  display: flex;
+  min-height: 35px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 18px;
+  color: var(--muted);
+  font-size: 0.59rem;
+}
+
+.active-filters button {
+  padding: 5px 8px;
+  border: 1px solid #bfe2d6;
+  border-radius: 999px;
+  color: var(--green-dark);
+  background: #eaf7f2;
+  font-size: 0.56rem;
+  font-weight: 720;
+  cursor: pointer;
+}
+
+.market-grid {
+  align-items: stretch;
+}
+
+.market-panel-heading {
+  display: flex;
+  min-height: 82px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 17px 19px 13px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.market-panel-heading h2 {
+  margin: 4px 0 3px;
+  color: var(--ink);
+  font-size: 0.93rem;
+  letter-spacing: -0.02em;
+}
+
+.market-panel-heading small {
+  color: var(--muted);
+  font-size: 0.56rem;
+}
+
+.market-panel-heading > strong {
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: var(--green-dark);
+  background: #eaf7f2;
+  font-size: 0.56rem;
+  white-space: nowrap;
+}
+
+.dimension-chart {
+  display: grid;
+  gap: 5px;
+  padding: 10px 13px 14px;
+}
+
+.dimension-row {
+  position: relative;
+  display: grid;
+  min-height: 48px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: 1fr 4px;
+  gap: 7px 10px;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--ink-soft);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dimension-row:hover,
+.dimension-row.active {
+  border-color: #c5e6db;
+  background: #eff8f5;
+}
+
+.dimension-row > span strong,
+.dimension-row > span small {
+  display: block;
+}
+
+.dimension-row > span strong {
+  overflow: hidden;
+  font-size: 0.62rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dimension-row > span small {
+  margin-top: 2px;
+  color: var(--muted-light);
+  font-size: 0.49rem;
+}
+
+.dimension-row > b {
+  align-self: center;
+  color: var(--ink);
+  font-size: 0.62rem;
+}
+
+.dimension-row > i {
+  overflow: hidden;
+  grid-column: 1 / -1;
+  height: 4px;
+  border-radius: 10px;
+  background: #e4ebe8;
+}
+
+.dimension-row > i span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--green);
+}
+
+.dimension-row.active > i span {
+  background: var(--blue);
+}
+
+.dimension-empty {
+  display: grid;
+  min-height: 330px;
+  place-items: center;
+  color: var(--muted);
+  font-size: 0.65rem;
+}
+
+.market-map {
+  position: relative;
+  overflow: hidden;
+  height: 405px;
+  color: var(--green-dark);
+  background:
+    radial-gradient(circle at 46% 58%, rgb(11 168 121 / 11%), transparent 17rem),
+    linear-gradient(145deg, #f6faf8, #edf5f2);
+}
+
+.market-map svg {
+  width: 100%;
+  height: 100%;
+}
+
+.market-map svg text {
+  fill: #8aa19b;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.municipality-shape {
+  fill: rgb(11 168 121 / 9%);
+  stroke: #72b9a4;
+  stroke-width: 2.2;
+  vector-effect: non-scaling-stroke;
+}
+
+.map-inset-frame {
+  fill: rgb(255 255 255 / 82%);
+  stroke: rgb(9 126 93 / 16%);
+}
+
+.map-inset-shape {
+  fill: rgb(11 168 121 / 10%);
+  stroke: #72b9a4;
+  stroke-width: 1.3;
+  vector-effect: non-scaling-stroke;
+}
+
+.map-inset-viewport {
+  fill: rgb(59 130 246 / 24%);
+  stroke: var(--blue);
+  stroke-width: 1.5;
+}
+
+.market-map svg .map-inset-label {
+  fill: #78918b;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.map-marker {
+  position: absolute;
+  z-index: var(--z, 2);
+  top: var(--y);
+  left: var(--x);
+  width: var(--size);
+  height: var(--size);
+  padding: 0;
+  border: 2px solid white;
+  border-radius: 50%;
+  background: var(--blue);
+  box-shadow: 0 3px 10px rgb(16 37 45 / 25%);
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+}
+
+.map-marker:hover,
+.map-marker:focus-visible {
+  z-index: 4;
+  background: var(--amber);
+  transform: translate(-50%, -50%) scale(1.25);
+}
+
+.map-marker span {
+  position: absolute;
+  inset: 25%;
+  border-radius: 50%;
+  background: white;
+  opacity: 0.9;
+}
+
+.map-marker.cluster span {
+  display: grid;
+  inset: 2px;
+  place-items: center;
+  color: var(--blue-dark);
+  font-size: clamp(0.42rem, calc(var(--size) / 3), 0.67rem);
+  font-weight: 850;
+  opacity: 1;
+}
+
+.map-zoom-label {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  padding: 5px 8px;
+  border: 1px solid rgb(9 126 93 / 18%);
+  border-radius: 999px;
+  color: var(--green-dark);
+  background: rgb(255 255 255 / 84%);
+  font-size: 0.49rem;
+  font-weight: 850;
+  letter-spacing: 0.09em;
+}
+
+.map-empty {
+  position: absolute;
+  right: 20px;
+  bottom: 18px;
+  left: 20px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--muted);
+  background: rgb(255 255 255 / 88%);
+  font-size: 0.62rem;
+  text-align: center;
+}
+
+.market-table a:hover strong {
+  color: var(--green-dark);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.detail-heading > small,
+.source-footnote {
+  color: var(--muted);
+  font-size: 0.58rem;
+}
+
+.source-footnote {
+  margin: 12px 3px 0;
+  line-height: 1.6;
+}
+
 @media (max-width: 1200px) {
   .executive-hero {
     grid-template-columns: minmax(0, 1fr) minmax(300px, 0.72fr);
@@ -2087,6 +2411,14 @@ td small {
 
   .kpi-grid-bi {
     grid-template-columns: repeat(3, 1fr);
+  }
+
+  .market-filterbar {
+    grid-template-columns: minmax(250px, 1.5fr) repeat(2, minmax(150px, 1fr));
+  }
+
+  .market-insights {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -2273,6 +2605,27 @@ td small {
     margin-bottom: 23px;
   }
 
+  .market-filterbar {
+    grid-template-columns: 1fr;
+  }
+
+  .market-filterbar .search-field {
+    min-height: 42px;
+  }
+
+  .market-filterbar > label:not(.search-field) {
+    min-height: 47px;
+  }
+
+  .market-map {
+    height: 355px;
+  }
+
+  .market-panel-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .insight-strip article {
     min-height: 76px;
   }
@@ -2394,5 +2747,99 @@ td small {
     scroll-behavior: auto !important;
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+.report-building .view {
+  display: block;
+  animation: none;
+}
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
+  body {
+    min-width: 0;
+    background: white;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .app-shell {
+    display: block;
+  }
+
+  .sidebar,
+  .sidebar-backdrop,
+  .topbar,
+  .status-banner,
+  .filter-bar,
+  .market-filterbar,
+  .active-filters,
+  .pagination,
+  .panel-link,
+  .detail-panel,
+  .report-button {
+    display: none !important;
+  }
+
+  .view,
+  .view.active {
+    display: block !important;
+    width: 100%;
+    max-width: none;
+    padding: 0;
+    animation: none;
+  }
+
+  .view + .view {
+    break-before: page;
+    page-break-before: always;
+    padding-top: 4mm;
+  }
+
+  .section-heading,
+  .overview-heading {
+    margin-top: 0;
+  }
+
+  .panel,
+  .insight-strip,
+  .privacy-panel,
+  .quality-card,
+  .source-footnote {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    box-shadow: none;
+  }
+
+  .bi-chart,
+  .bi-chart-ranking {
+    height: 290px;
+    min-height: 260px;
+  }
+
+  .bi-chart-tall {
+    height: 430px;
+  }
+
+  .market-map {
+    height: 330px;
+  }
+
+  .table-wrap {
+    overflow: visible;
+  }
+
+  table {
+    font-size: 7pt;
+  }
+
+  th,
+  td {
+    padding: 7px 9px;
   }
 }

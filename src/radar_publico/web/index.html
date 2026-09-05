@@ -88,6 +88,7 @@
           <div class="topbar-actions">
             <div class="freshness"><span></span><div><small>ÚLTIMA ATUALIZAÇÃO</small><strong id="last-updated">Carregando…</strong></div></div>
             <button class="button secondary" id="refresh-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5M4 18v-5h5M18.5 10a7 7 0 0 0-12.2-3L4 11M5.5 14a7 7 0 0 0 12.2 3L20 13"/></svg>Atualizar</button>
+            <button class="button secondary report-button" id="report-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h6M9 17h6"/></svg>Relatório PDF</button>
             <a class="button primary" id="export-button" href="/api/export/opportunities.csv"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Exportar CSV</a>
           </div>
         </header>
@@ -181,20 +182,37 @@
         </section>
 
         <section class="view" id="view-suppliers" data-title="Fornecedores">
-          <div class="section-heading"><div><p class="eyebrow">MERCADO</p><h1>Fornecedores</h1><p>Empresas identificadas por CNPJ, contratos e pagamentos agregados.</p></div><div class="metric-pill"><span id="suppliers-total">—</span> CNPJs</div></div>
-          <div class="insight-strip">
-            <article><span class="insight-icon blue"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.4-3.4 2.2-5 5.5-5s5.1 1.6 5.5 5M16 6.5a3 3 0 0 1 0 5.8M16.5 14c2.4.4 3.7 2 4 5"/></svg></span><div><small>CNPJS MAPEADOS</small><strong id="suppliers-creditors">—</strong><p>empresas identificadas na base</p></div></article>
-            <article><span class="insight-icon green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 3v5c0 5.3-3.2 8.6-8 10-4.8-1.4-8-4.7-8-10V6zM8.5 12l2.2 2.2 4.8-5"/></svg></span><div><small>PERFIS ENRIQUECIDOS</small><strong id="suppliers-enriched">—</strong><p>cadastros consultados por CNPJ</p></div></article>
-            <article><span class="insight-icon purple"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18 9 13l3 3 7-9M15 7h4v4"/></svg></span><div><small>MERCADO CONTRATADO</small><strong id="suppliers-value">—</strong><p>valor da carteira municipal</p></div></article>
+          <div class="section-heading"><div><p class="eyebrow">INTELIGÊNCIA DE MERCADO</p><h1>Empresas conectadas à demanda pública</h1><p>Contratos e pagamentos municipais combinados com cadastro, nicho, regime, contato e localização empresarial.</p></div><div class="metric-pill" id="suppliers-coverage">— de — enriquecidas</div></div>
+          <div class="insight-strip market-insights">
+            <article><span class="insight-icon blue"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.4-3.4 2.2-5 5.5-5s5.1 1.6 5.5 5M16 6.5a3 3 0 0 1 0 5.8M16.5 14c2.4.4 3.7 2 4 5"/></svg></span><div><small>EMPRESAS NO RECORTE</small><strong id="market-company-count">—</strong><p>após o cross-filter</p></div></article>
+            <article><span class="insight-icon green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-2.4 1.8a15 15 0 0 0 4.6 4.6L15 13l5 2v4c0 .6-.4 1-1 1C10.7 20 4 13.3 4 5c0-.6.4-1 1-1z"/></svg></span><div><small>COM CONTATO</small><strong id="market-phone-count">—</strong><p>telefone cadastral disponível</p></div></article>
+            <article><span class="insight-icon purple"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-5.2 7-12a7 7 0 1 0-14 0c0 6.8 7 12 7 12z"/><circle cx="12" cy="9" r="2"/></svg></span><div><small>GEOLOCALIZADAS</small><strong id="market-location-count">—</strong><p>coordenada derivada do CEP</p></div></article>
+            <article><span class="insight-icon amber"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v12H4zM7 12h10M8 16h3"/></svg></span><div><small>PAGO NO RECORTE</small><strong id="market-paid-value">—</strong><p>execução conectada aos perfis</p></div></article>
           </div>
-          <div class="workspace-intro"><div><p class="eyebrow">CONCORRÊNCIA</p><h2>Empresas com maior carteira e fluxo de pagamentos</h2></div><small>Visão anual · os filtros abaixo atuam no detalhamento</small></div>
-          <div class="dashboard-grid workspace-charts">
-            <article class="panel bi-panel span-6"><div class="bi-chart bi-chart-ranking" id="suppliers-contract-chart" role="img" aria-label="Fornecedores com maior valor contratado"></div></article>
-            <article class="panel bi-panel span-6"><div class="bi-chart bi-chart-ranking" id="supplier-payment-chart" role="img" aria-label="Credores que mais receberam pagamentos"></div></article>
+
+          <div class="market-filterbar" aria-label="Filtros conectados de inteligência empresarial">
+            <label class="search-field">⌕<input id="market-search" type="search" placeholder="Empresa, CNPJ, CNAE ou telefone…" aria-label="Buscar no mercado enriquecido"></label>
+            <label><span>Cidade</span><select id="market-city" aria-label="Filtrar cidade"><option value="">Todas</option></select></label>
+            <label><span>Bairro</span><select id="market-district" aria-label="Filtrar bairro"><option value="">Todos</option></select></label>
+            <label><span>Nicho</span><select id="market-sector" aria-label="Filtrar nicho"><option value="">Todos</option></select></label>
+            <label><span>Porte</span><select id="market-size" aria-label="Filtrar porte"><option value="">Todos</option></select></label>
+            <label><span>Situação</span><select id="market-status" aria-label="Filtrar situação cadastral"><option value="">Todas</option></select></label>
+            <button class="button secondary" id="market-clear" type="button">Limpar</button>
           </div>
-          <div class="detail-heading"><div><p class="eyebrow">DETALHAMENTO</p><h2>Perfis de fornecedores e execução</h2></div></div>
-          <div class="filter-bar"><label class="search-field">⌕<input id="suppliers-search" type="search" placeholder="Razão social ou CNPJ…" aria-label="Buscar fornecedores por razão social ou CNPJ"></label><label class="check-field"><input id="contracted-only" type="checkbox"> Somente com contrato</label><button class="button primary" data-filter="suppliers">Aplicar filtros</button></div>
-          <article class="panel"><div class="table-wrap"><table class="data-table" aria-label="Fornecedores"><thead><tr><th>Empresa</th><th>Perfil cadastral</th><th class="numeric">Contratos</th><th class="numeric">Valor contratado</th><th class="numeric">Valor pago</th></tr></thead><tbody id="suppliers-body"></tbody></table></div><div class="pagination" id="suppliers-pagination"></div></article>
+          <div class="active-filters" id="market-active-filters" aria-live="polite"></div>
+
+          <div class="workspace-intro"><div><p class="eyebrow">CROSS-FILTER</p><h2>Clique em nichos, cidades, portes ou pontos do mapa</h2></div><small>Todos os KPIs, gráficos, mapa e empresas abaixo respondem ao mesmo recorte</small></div>
+          <div class="dashboard-grid workspace-charts market-grid">
+            <article class="panel market-map-panel span-7"><header class="market-panel-heading"><div><p class="eyebrow">GEOGRAFIA</p><h2 id="market-map-title">Sedes empresariais em Cuiabá</h2><small>Área urbana ampliada · clique em um ponto para cruzar todas as visões</small></div><strong id="market-map-count">— sedes</strong></header><div class="market-map" id="market-map" role="img" aria-label="Mapa de Cuiabá com empresas geolocalizadas"></div></article>
+            <article class="panel dimension-panel span-5"><header class="market-panel-heading"><div><p class="eyebrow">NICHO</p><h2>Valor pago por setor CNAE</h2><small>Clique em uma barra para cruzar todas as visões</small></div></header><div class="dimension-chart" id="market-sector-chart"></div></article>
+            <article class="panel dimension-panel span-6"><header class="market-panel-heading"><div><p class="eyebrow">PRAÇA</p><h2>Valor pago por cidade-sede</h2><small>Cadastro do estabelecimento na Receita Federal</small></div></header><div class="dimension-chart" id="market-city-chart"></div></article>
+            <article class="panel dimension-panel span-6"><header class="market-panel-heading"><div><p class="eyebrow">PERFIL</p><h2>Valor pago por porte empresarial</h2><small>Porte cadastral da empresa</small></div></header><div class="dimension-chart" id="market-size-chart"></div></article>
+            <article class="panel bi-panel span-6"><div class="bi-chart bi-chart-ranking" id="supplier-payment-chart" role="img" aria-label="Empresas com maior valor pago no recorte"></div></article>
+            <article class="panel bi-panel span-6"><div class="bi-chart bi-chart-ranking" id="suppliers-contract-chart" role="img" aria-label="Relação entre valor contratado e pago por empresa"></div></article>
+          </div>
+          <div class="detail-heading"><div><p class="eyebrow">PERFIS ACIONÁVEIS</p><h2>Empresas do recorte conectado</h2></div><small id="market-table-count">— resultados enriquecidos</small></div>
+          <article class="panel"><div class="table-wrap"><table class="data-table market-table" aria-label="Inteligência de fornecedores"><thead><tr><th>Empresa / nicho</th><th>Cadastro</th><th>Contato</th><th>Localização</th><th class="numeric">Contratos</th><th class="numeric">Pago</th></tr></thead><tbody id="suppliers-body"></tbody></table></div></article>
+          <p class="source-footnote">Fontes: Portal da Transparência de Cuiabá para contratos e pagamentos; BrasilAPI/Receita Federal para cadastro e contato; BrasilAPI CEP v2 para coordenadas; IBGE para a malha municipal. Dados cadastrais podem estar desatualizados e devem ser confirmados antes do contato comercial.</p>
         </section>
 
         <section class="view" id="view-agencies" data-title="Órgãos">
