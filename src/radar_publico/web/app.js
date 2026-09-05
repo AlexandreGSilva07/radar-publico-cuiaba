@@ -119,13 +119,16 @@ async function loadOverview(force = false) {
   if (appState.loaded.has("overview") && !force) return;
   showStatus("Atualizando indicadores executivos…");
   try {
-    const [summary, metadata, pipeline, agencies, renewals] = await Promise.all([
+    const [summary, metadata, pipeline, agencies, renewals, opportunities] = await Promise.all([
       api("/api/summary"), api("/api/meta"), api("/api/pipeline"),
       api("/api/agencies?page_size=5"), api("/api/renewals?page_size=6&within_days=365"),
+      api("/api/opportunities?page_size=100"),
     ]);
     element("#dataset-year").textContent = summary.year;
     element("#period-label").textContent = `Ano de ${summary.year}`;
-    element("#kpi-open").textContent = integer.format(summary.open_procurements);
+    element("#hero-open").textContent = integer.format(summary.open_procurements);
+    element("#kpi-open").textContent = integer.format(summary.procurement_count);
+    element("#kpi-open-detail").textContent = `${integer.format(summary.open_procurements)} em andamento agora`;
     element("#nav-open-count").textContent = integer.format(summary.open_procurements);
     element("#kpi-contracts").textContent = money(summary.contract_value, true);
     element("#kpi-contracts").title = money(summary.contract_value);
@@ -140,19 +143,48 @@ async function loadOverview(force = false) {
     renderPipeline(pipeline);
     renderAgencyRanking(agencies.items);
     renderRenewals(renewals.items);
+    renderHeroOpportunity(opportunities.items);
     appState.loaded.add("overview");
     showStatus(`Dados de ${summary.year} carregados com sucesso.`, "success");
   } catch (error) { showError(error); }
 }
 
 function renderPipeline(items) {
-  const maximum = Math.max(...items.map((item) => item.procurement_count), 1);
   const total = items.reduce((sum, item) => sum + item.procurement_count, 0);
-  element("#pipeline-chart").innerHTML = `<div class="chart-total"><strong>${integer.format(total)}</strong><span>processos no período</span></div>
-    <div class="bar-chart">${items.map((item, index) => `<div class="bar-row">
-      <div><span>${html(item.status)}</span><strong>${integer.format(item.procurement_count)}</strong></div>
-      <div class="bar-track"><i class="bar-${index % 4}" style="width:${Math.max(2, item.procurement_count / maximum * 100)}%"></i></div>
-      <small>${money(item.awarded_value, true)} homologados</small></div>`).join("")}</div>`;
+  const colors = ["#0ba879", "#3b82f6", "#e99b25", "#8067dc", "#d6565c", "#7e949c", "#58c4aa"];
+  let offset = 0;
+  const segments = items.map((item, index) => {
+    const start = offset;
+    offset += total ? item.procurement_count / total * 100 : 0;
+    return `${colors[index % colors.length]} ${start}% ${offset}%`;
+  }).join(", ");
+  element("#pipeline-chart").innerHTML = `<div class="pipeline-layout">
+    <div class="donut-shell"><div class="donut" style="background:conic-gradient(${segments})"></div>
+      <div class="donut-center"><strong>${integer.format(total)}</strong><span>processos mapeados</span></div></div>
+    <div class="legend-list">${items.map((item, index) => `<div class="legend-row">
+      <span class="legend-color" style="--legend-color:${colors[index % colors.length]}"></span>
+      <div class="legend-copy"><strong>${html(item.status)}</strong><small>${money(item.awarded_value, true)} homologados</small></div>
+      <b>${integer.format(item.procurement_count)}</b></div>`).join("")}</div></div>`;
+}
+function renderHeroOpportunity(items) {
+  if (!items.length) {
+    element("#hero-highlight-number").textContent = "Nenhum processo aberto";
+    element("#hero-highlight-object").textContent = "O radar não encontrou oportunidades neste recorte.";
+    element("#hero-highlight-agency").textContent = "Amplie os filtros para consultar o histórico.";
+    element("#hero-highlight-date").textContent = "—";
+    element("#hero-score").textContent = "0";
+    return;
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const upcoming = items.filter((item) => item.session_on && new Date(`${item.session_on}T00:00:00`) >= today)
+    .sort((left, right) => left.session_on.localeCompare(right.session_on));
+  const featured = upcoming[0] || items[0];
+  element("#hero-highlight-number").textContent = `${text(featured.number, "s/n")} / ${featured.year}`;
+  element("#hero-highlight-object").textContent = text(featured.object_text);
+  element("#hero-highlight-agency").textContent = text(featured.agency);
+  element("#hero-highlight-date").textContent = date(featured.session_on);
+  element("#hero-score").textContent = integer.format(featured.relevance_score);
 }
 function renderAgencyRanking(items) {
   const maximum = Math.max(...items.map((item) => Number(item.contract_value)), 1);
@@ -271,17 +303,30 @@ function navigate(viewName) {
   const target = titles[viewName] ? viewName : "overview";
   appState.currentView = target;
   document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === `view-${target}`));
-  document.querySelectorAll(".nav-link[data-view]").forEach((link) => link.classList.toggle("active", link.dataset.view === target));
+  document.querySelectorAll(".nav-link[data-view]").forEach((link) => {
+    const active = link.dataset.view === target;
+    link.classList.toggle("active", active);
+    if (active) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
+  });
   element("#page-context").textContent = titles[target].toUpperCase();
   element("#export-button").href = `/api/export/${exportsByView[target]}.csv`;
-  element("#sidebar").classList.remove("open");
-  element("#menu-button").setAttribute("aria-expanded", "false");
+  setMenu(false);
   loaders[target]();
 }
 
+function setMenu(open) {
+  element("#sidebar").classList.toggle("open", open);
+  document.body.classList.toggle("menu-open", open);
+  element("#menu-button").setAttribute("aria-expanded", String(open));
+}
 element("#menu-button").addEventListener("click", (event) => {
-  const open = element("#sidebar").classList.toggle("open");
-  event.currentTarget.setAttribute("aria-expanded", String(open));
+  setMenu(event.currentTarget.getAttribute("aria-expanded") !== "true");
+});
+element("#sidebar-close").addEventListener("click", () => setMenu(false));
+element("#sidebar-backdrop").addEventListener("click", () => setMenu(false));
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") setMenu(false);
 });
 element("#refresh-button").addEventListener("click", () => {
   if (appState.currentView === "overview") loadOverview(true);

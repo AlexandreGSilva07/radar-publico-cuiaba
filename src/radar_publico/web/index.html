@@ -3,17 +3,20 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#0a1d2e">
+    <meta name="theme-color" content="#0b1f27">
     <meta name="description" content="Inteligência comercial sobre compras públicas de Cuiabá.">
     <title>Radar Público Cuiabá</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/styles.css">
-    <script src="/app.js" defer></script>
+    <link rel="stylesheet" href="/styles.css?v=2">
+    <script src="/app.js?v=2" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#content">Ir para o conteúdo</a>
     <div class="app-shell">
       <aside class="sidebar" id="sidebar">
+        <button class="sidebar-close" id="sidebar-close" type="button" aria-label="Fechar menu">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+        </button>
         <a class="brand" href="#overview" aria-label="Radar Público — início">
           <span class="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="18"/><circle cx="22" cy="22" r="11"/><path d="M22 22 34 12"/><circle class="brand-dot" cx="34" cy="12" r="3"/></svg>
@@ -24,51 +27,60 @@
         <nav class="main-nav" aria-label="Navegação principal">
           <p class="nav-label">Inteligência</p>
           <a class="nav-link active" href="#overview" data-view="overview">
-            <span aria-hidden="true">⌂</span> Visão geral
+            <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+            <span>Visão geral</span>
           </a>
           <a class="nav-link" href="#opportunities" data-view="opportunities">
-            <span aria-hidden="true">⌁</span> Oportunidades
+            <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="m14.2 9.8 5.3-5.3M16.5 4.5h3v3"/></svg>
+            <span>Oportunidades</span>
             <b class="nav-badge" id="nav-open-count">—</b>
           </a>
           <a class="nav-link" href="#contracts" data-view="contracts">
-            <span aria-hidden="true">▤</span> Contratos
+            <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h7M9 16h7"/></svg>
+            <span>Contratos</span>
           </a>
           <a class="nav-link" href="#suppliers" data-view="suppliers">
-            <span aria-hidden="true">◇</span> Fornecedores
+            <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.4-3.4 2.2-5 5.5-5s5.1 1.6 5.5 5M16 6.5a3 3 0 0 1 0 5.8M16.5 14c2.4.4 3.7 2 4 5"/></svg>
+            <span>Fornecedores</span>
           </a>
           <a class="nav-link" href="#agencies" data-view="agencies">
-            <span aria-hidden="true">▥</span> Órgãos
+            <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V9l8-5 8 5v12M8 12h2M14 12h2M8 16h2M14 16h2M3 21h18"/></svg>
+            <span>Órgãos</span>
           </a>
           <a class="nav-link" href="#expenses" data-view="expenses">
-            <span aria-hidden="true">↗</span> Execução financeira
+            <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20V7"/></svg>
+            <span>Execução financeira</span>
           </a>
           <p class="nav-label">Sistema</p>
           <a class="nav-link" href="#quality" data-view="quality">
-            <span aria-hidden="true">✓</span> Qualidade dos dados
+            <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 3v5c0 5.3-3.2 8.6-8 10-4.8-1.4-8-4.7-8-10V6z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg>
+            <span>Qualidade dos dados</span>
           </a>
           <a class="nav-link" href="/api/docs" target="_blank">
-            <span aria-hidden="true">{ }</span> API
+            <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5-5 7 5 7M16 5l5 7-5 7M14 3l-4 18"/></svg>
+            <span>API</span>
           </a>
         </nav>
 
         <div class="source-card">
           <span class="source-pulse" aria-hidden="true"></span>
           <div><strong>Fonte oficial</strong><small>Portal da Transparência</small></div>
-          <a id="source-link" href="#" target="_blank" rel="noopener" aria-label="Abrir fonte oficial">↗</a>
+          <a id="source-link" href="#" target="_blank" rel="noopener" aria-label="Abrir fonte oficial"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-9 9M19 14v5H5V5h5"/></svg></a>
         </div>
       </aside>
+      <button class="sidebar-backdrop" id="sidebar-backdrop" type="button" aria-label="Fechar menu"></button>
 
       <main id="content">
         <header class="topbar">
-          <button class="icon-button menu-button" id="menu-button" aria-label="Abrir menu" aria-controls="sidebar" aria-expanded="false">☰</button>
+          <button class="icon-button menu-button" id="menu-button" aria-label="Abrir menu" aria-controls="sidebar" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
           <div class="page-context">
             <span>RADAR PÚBLICO /</span>
             <strong id="page-context">VISÃO GERAL</strong>
           </div>
           <div class="topbar-actions">
             <div class="freshness"><span></span><div><small>ÚLTIMA ATUALIZAÇÃO</small><strong id="last-updated">Carregando…</strong></div></div>
-            <button class="button secondary" id="refresh-button" type="button">↻ Atualizar</button>
-            <a class="button primary" id="export-button" href="/api/export/opportunities.csv">⇩ Exportar CSV</a>
+            <button class="button secondary" id="refresh-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5M4 18v-5h5M18.5 10a7 7 0 0 0-12.2-3L4 11M5.5 14a7 7 0 0 0 12.2 3L20 13"/></svg>Atualizar</button>
+            <a class="button primary" id="export-button" href="/api/export/opportunities.csv"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>Exportar CSV</a>
           </div>
         </header>
 
@@ -78,29 +90,43 @@
         </div>
 
         <section class="view active" id="view-overview" data-title="Visão geral">
-          <div class="hero-heading">
-            <div><p class="eyebrow">PAINEL EXECUTIVO · <span id="dataset-year">2026</span></p><h1>Pulso das compras públicas</h1><p>Transforme dados oficiais em sinais comerciais claros.</p></div>
-            <div class="year-chip"><span>Período analisado</span><strong id="period-label">Ano de 2026</strong></div>
+          <div class="executive-hero">
+            <div class="hero-copy">
+              <p class="hero-kicker"><span></span> MERCADO PÚBLICO DE CUIABÁ · <b id="dataset-year">2026</b></p>
+              <h1>Decida onde sua empresa deve <em>competir.</em></h1>
+              <p>Compras, contratos e pagamentos públicos transformados em sinais comerciais prontos para agir.</p>
+              <div class="hero-actions">
+                <a class="hero-primary" href="#opportunities" data-go="opportunities"><strong id="hero-open">—</strong><span>oportunidades<br>em movimento</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5"/></svg></a>
+                <div class="period-inline"><span>RECORTE ATUAL</span><strong id="period-label">Ano de 2026</strong></div>
+              </div>
+            </div>
+            <aside class="hero-signal" aria-label="Oportunidade em destaque">
+              <header><span>DESTAQUE DO RADAR</span><b><strong id="hero-score">—</strong>/115</b></header>
+              <div class="signal-meta"><span id="hero-highlight-number">Carregando…</span><span class="live-dot">EM ANDAMENTO</span></div>
+              <h2 id="hero-highlight-object">Identificando a oportunidade mais relevante…</h2>
+              <p id="hero-highlight-agency">Portal da Transparência de Cuiabá</p>
+              <footer><div><small>SESSÃO PÚBLICA</small><strong id="hero-highlight-date">—</strong></div><a href="#opportunities" data-go="opportunities" aria-label="Ver todas as oportunidades"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5"/></svg></a></footer>
+            </aside>
           </div>
 
           <div class="kpi-grid">
-            <article class="kpi-card accent"><div class="kpi-top"><span class="kpi-icon">⌁</span><span class="trend positive">AO VIVO</span></div><p>Oportunidades abertas</p><strong id="kpi-open">—</strong><small>processos em andamento</small></article>
-            <article class="kpi-card"><div class="kpi-top"><span class="kpi-icon">▤</span><span class="trend">CONTRATADO</span></div><p>Valor dos contratos</p><strong id="kpi-contracts">—</strong><small id="kpi-contract-count">— contratos analisados</small></article>
-            <article class="kpi-card"><div class="kpi-top"><span class="kpi-icon">↗</span><span class="trend">PAGAMENTOS</span></div><p>Execução financeira</p><strong id="kpi-paid">—</strong><small id="kpi-creditors">— credores consolidados</small></article>
-            <article class="kpi-card"><div class="kpi-top"><span class="kpi-icon">↓</span><span class="trend positive">EFICIÊNCIA</span></div><p>Diferença estimado × homologado</p><strong id="kpi-savings">—</strong><small>nos processos com ambos os valores</small></article>
+            <article class="kpi-card tone-blue"><div class="kpi-top"><span class="kpi-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="m14.2 9.8 5.3-5.3"/></svg></span><span class="trend positive">MONITORADOS</span></div><p>Licitações no radar</p><strong id="kpi-open">—</strong><small id="kpi-open-detail">— em andamento agora</small></article>
+            <article class="kpi-card tone-purple"><div class="kpi-top"><span class="kpi-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h6M9 17h6"/></svg></span><span class="trend">CONTRATADO</span></div><p>Carteira contratual</p><strong id="kpi-contracts">—</strong><small id="kpi-contract-count">— contratos analisados</small></article>
+            <article class="kpi-card tone-teal"><div class="kpi-top"><span class="kpi-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20V7"/></svg></span><span class="trend">PAGAMENTOS</span></div><p>Dinheiro já pago</p><strong id="kpi-paid">—</strong><small id="kpi-creditors">— credores consolidados</small></article>
+            <article class="kpi-card tone-amber"><div class="kpi-top"><span class="kpi-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 8 7 7 7-7M12 4v11M5 20h14"/></svg></span><span class="trend positive">EFICIÊNCIA</span></div><p>Economia homologada</p><strong id="kpi-savings">—</strong><small>entre valores estimado e homologado</small></article>
           </div>
 
           <div class="dashboard-grid">
             <article class="panel span-7">
-              <div class="panel-heading"><div><p class="eyebrow">LICITAÇÕES</p><h2>Funil de processos</h2></div><span class="panel-note">por situação</span></div>
+              <div class="panel-heading"><div><p class="eyebrow">LICITAÇÕES</p><h2>Distribuição dos processos</h2></div><span class="panel-note">por situação</span></div>
               <div class="chart" id="pipeline-chart" aria-label="Licitações por situação"></div>
             </article>
             <article class="panel span-5">
-              <div class="panel-heading"><div><p class="eyebrow">CONCENTRAÇÃO</p><h2>Órgãos por contratos</h2></div><a href="#agencies" data-go="agencies">Ver todos →</a></div>
+              <div class="panel-heading"><div><p class="eyebrow">CONCENTRAÇÃO</p><h2>Quem mais contrata</h2></div><a href="#agencies" data-go="agencies">Ver ranking →</a></div>
               <div class="rank-list" id="agency-ranking"></div>
             </article>
             <article class="panel span-12">
-              <div class="panel-heading"><div><p class="eyebrow">SINAL COMERCIAL</p><h2>Contratos próximos do encerramento</h2></div><a href="/api/export/contracts.csv">Exportar base ↗</a></div>
+              <div class="panel-heading"><div><p class="eyebrow">JANELA COMERCIAL</p><h2>Contratos próximos do encerramento</h2></div><a href="/api/export/contracts.csv">Exportar base ↗</a></div>
               <div class="table-wrap"><table><thead><tr><th>Fornecedor / objeto</th><th>Órgão</th><th>Encerramento</th><th>Dias</th><th class="numeric">Valor atual</th></tr></thead><tbody id="renewals-body"><tr><td colspan="5" class="skeleton-row">Carregando renovações…</td></tr></tbody></table></div>
             </article>
           </div>
