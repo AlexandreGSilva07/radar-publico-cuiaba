@@ -17,6 +17,7 @@ from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 
 from radar_publico import __version__
+from radar_publico.normalize import search_text as normalize_search_text
 
 PORTAL_URL = "https://transparencia.cuiaba.mt.gov.br/portaltransparencia/"
 
@@ -33,7 +34,11 @@ EXPORTS = {
         "ORDER BY current_value DESC NULLS LAST"
     ),
     "agencies": "SELECT * FROM gold_agencies ORDER BY contract_value DESC",
-    "suppliers": "SELECT * FROM gold_suppliers ORDER BY contract_value DESC, paid_value DESC",
+    "suppliers": (
+        "SELECT cnpj, supplier_name, contract_count, contract_value, expense_records, "
+        "committed_value, paid_value FROM gold_suppliers "
+        "ORDER BY contract_value DESC, paid_value DESC"
+    ),
     "expenses": (
         "SELECT cnpj, supplier_name, expense_records, committed_value, paid_value "
         "FROM gold_suppliers WHERE expense_records>0 ORDER BY paid_value DESC"
@@ -121,7 +126,8 @@ def _paged(
 
 
 def _search_pattern(query: str) -> str:
-    escaped = query.casefold().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    normalized = normalize_search_text(query)
+    escaped = normalized.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     return f"%{escaped}%"
 
 
@@ -201,7 +207,7 @@ def create_app(
         conditions = ["1=1"]
         parameters: list[object] = []
         if q:
-            conditions.append("lower(coalesce(object_text,'')) LIKE ? ESCAPE '\\'")
+            conditions.append("search_text LIKE ? ESCAPE '\\'")
             parameters.append(_search_pattern(q))
         if agency:
             conditions.append("agency=?")
@@ -214,9 +220,13 @@ def create_app(
             parameters.append(min_value)
         where = " AND ".join(conditions)
         try:
+            columns = (
+                "procurement_id, number, year, object_text, agency, modality, status, "
+                "published_on, session_on, estimated_value, has_document, relevance_score"
+            )
             return _paged(
                 database,
-                select_sql=f"SELECT * FROM gold_opportunities WHERE {where} "
+                select_sql=f"SELECT {columns} FROM gold_opportunities WHERE {where} "
                 "ORDER BY relevance_score DESC, session_on DESC NULLS LAST, procurement_id DESC",
                 count_sql=f"SELECT count(*) AS total FROM gold_opportunities WHERE {where}",
                 parameters=parameters,
@@ -238,8 +248,8 @@ def create_app(
         parameters: list[object] = []
         if q:
             conditions.append(
-                "(lower(coalesce(object_text,'')) LIKE ? ESCAPE '\\' OR "
-                "lower(coalesce(supplier_name,'')) LIKE ? ESCAPE '\\')"
+                "(search_text LIKE ? ESCAPE '\\' OR "
+                "strip_accents(lower(coalesce(supplier_name,''))) LIKE ? ESCAPE '\\')"
             )
             pattern = _search_pattern(q)
             parameters.extend([pattern, pattern])
@@ -298,7 +308,7 @@ def create_app(
         parameters: list[object] = []
         where = "1=1"
         if q:
-            where = "lower(agency) LIKE ? ESCAPE '\\'"
+            where = "strip_accents(lower(agency)) LIKE ? ESCAPE '\\'"
             parameters.append(_search_pattern(q))
         try:
             return _paged(
@@ -326,12 +336,10 @@ def create_app(
             pattern = _search_pattern(q)
             digits = "".join(filter(str.isdigit, q))
             if digits:
-                conditions.append(
-                    "(lower(coalesce(supplier_name,'')) LIKE ? ESCAPE '\\' OR cnpj LIKE ?)"
-                )
+                conditions.append("(supplier_search LIKE ? ESCAPE '\\' OR cnpj LIKE ?)")
                 parameters.extend([pattern, f"%{digits}%"])
             else:
-                conditions.append("lower(coalesce(supplier_name,'')) LIKE ? ESCAPE '\\'")
+                conditions.append("supplier_search LIKE ? ESCAPE '\\'")
                 parameters.append(pattern)
         if contracted_only:
             conditions.append("contract_count>0")
@@ -339,8 +347,12 @@ def create_app(
         try:
             result = _paged(
                 database,
-                select_sql=f"SELECT * FROM gold_suppliers WHERE {where} "
-                "ORDER BY contract_value DESC, paid_value DESC",
+                select_sql=(
+                    "SELECT cnpj, supplier_name, contract_count, contract_value, "
+                    "expense_records, committed_value, paid_value "
+                    f"FROM gold_suppliers WHERE {where} "
+                    "ORDER BY contract_value DESC, paid_value DESC"
+                ),
                 count_sql=f"SELECT count(*) AS total FROM gold_suppliers WHERE {where}",
                 parameters=parameters,
                 page=page,
@@ -363,7 +375,7 @@ def create_app(
         parameters: list[object] = []
         where = "expense_records>0"
         if q:
-            where += " AND lower(coalesce(supplier_name,'')) LIKE ? ESCAPE '\\'"
+            where += " AND supplier_search LIKE ? ESCAPE '\\'"
             parameters.append(_search_pattern(q))
         columns = "cnpj, supplier_name, expense_records, committed_value, paid_value"
         try:

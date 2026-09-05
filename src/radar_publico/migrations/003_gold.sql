@@ -28,6 +28,7 @@ SELECT
   number,
   year,
   object_text,
+  search_text,
   agency,
   modality,
   status,
@@ -116,6 +117,7 @@ WITH contracts AS (
 SELECT
   coalesce(c.cnpj, e.cnpj) AS cnpj,
   coalesce(c.supplier_name, e.supplier_name) AS supplier_name,
+  strip_accents(lower(coalesce(c.supplier_name, e.supplier_name, ''))) AS supplier_search,
   coalesce(c.contract_count, 0) AS contract_count,
   coalesce(c.contract_value, 0) AS contract_value,
   coalesce(e.expense_records, 0) AS expense_records,
@@ -155,4 +157,3 @@ SELECT
   invalid_document_records,
   round(100.0 * accepted_records / nullif(source_records, 0), 2) AS acceptance_rate
 FROM data_quality;
-
