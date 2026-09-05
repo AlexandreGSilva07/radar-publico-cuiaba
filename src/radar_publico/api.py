@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import math
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -11,10 +13,31 @@ from typing import Any
 import duckdb
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import Response
 
 from radar_publico import __version__
 
 PORTAL_URL = "https://transparencia.cuiaba.mt.gov.br/portaltransparencia/"
+
+EXPORTS = {
+    "opportunities": (
+        "SELECT procurement_id, number, year, object_text, agency, modality, status, "
+        "published_on, session_on, estimated_value, relevance_score "
+        "FROM gold_opportunities ORDER BY relevance_score DESC, procurement_id DESC"
+    ),
+    "contracts": (
+        "SELECT contract_id, number, year, object_text, agency, supplier_name, cnpj, status, "
+        "signed_on, starts_on, ends_on, contract_type, category, original_value, current_value, "
+        "procurement_id, procurement_status FROM gold_contract_links "
+        "ORDER BY current_value DESC NULLS LAST"
+    ),
+    "agencies": "SELECT * FROM gold_agencies ORDER BY contract_value DESC",
+    "suppliers": "SELECT * FROM gold_suppliers ORDER BY contract_value DESC, paid_value DESC",
+    "expenses": (
+        "SELECT cnpj, supplier_name, expense_records, committed_value, paid_value "
+        "FROM gold_suppliers WHERE expense_records>0 ORDER BY paid_value DESC"
+    ),
+}
 
 
 class AnalyticsDatabase:
@@ -99,6 +122,28 @@ def _paged(
 def _search_pattern(query: str) -> str:
     escaped = query.casefold().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     return f"%{escaped}%"
+
+
+def _safe_csv_cell(value: object) -> object:
+    if not isinstance(value, str):
+        return value
+    if value.lstrip().startswith(("=", "+", "-", "@")):
+        return f"'{value}"
+    return value
+
+
+def _csv_response(dataset: str, rows: list[dict[str, Any]]) -> Response:
+    output = io.StringIO()
+    if rows:
+        writer = csv.DictWriter(output, fieldnames=list(rows[0]), delimiter=";")
+        writer.writeheader()
+        writer.writerows({key: _safe_csv_cell(value) for key, value in row.items()} for row in rows)
+    content = "\ufeff" + output.getvalue()
+    return Response(
+        content=content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="radar-cuiaba-{dataset}.csv"'},
+    )
 
 
 def create_app(
@@ -341,6 +386,16 @@ def create_app(
     def quality() -> list[dict[str, Any]]:
         try:
             return database.rows("SELECT * FROM gold_quality ORDER BY resource")
+        except (duckdb.Error, FileNotFoundError) as exc:
+            raise HTTPException(status_code=503, detail="analytics database unavailable") from exc
+
+    @application.get("/api/export/{dataset}.csv", response_class=Response)
+    def export_csv(dataset: str) -> Response:
+        query = EXPORTS.get(dataset)
+        if query is None:
+            raise HTTPException(status_code=404, detail="dataset de exportação inexistente")
+        try:
+            return _csv_response(dataset, database.rows(query))
         except (duckdb.Error, FileNotFoundError) as exc:
             raise HTTPException(status_code=503, detail="analytics database unavailable") from exc
 

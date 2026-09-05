@@ -6,7 +6,7 @@ from pathlib import Path
 import duckdb
 from fastapi.testclient import TestClient
 
-from radar_publico.api import create_app
+from radar_publico.api import _csv_response, create_app
 
 
 def _analytics(path: Path) -> None:
@@ -79,3 +79,21 @@ def test_quality_and_pipeline_are_available(tmp_path: Path) -> None:
 
     assert client.get("/api/pipeline").json()[0]["status"] == "EM ANDAMENTO"
     assert client.get("/api/quality").json()[0]["acceptance_rate"] == 100.0
+
+
+def test_csv_export_is_allowlisted_and_downloadable(tmp_path: Path) -> None:
+    analytics = tmp_path / "analytics.duckdb"
+    _analytics(analytics)
+    client = TestClient(create_app(analytics))
+
+    response = client.get("/api/export/contracts.csv")
+    assert response.status_code == 200
+    assert response.content.startswith("contract_id".encode("utf-8-sig"))
+    assert "attachment" in response.headers["content-disposition"]
+    assert "source_hash" not in response.text
+    assert client.get("/api/export/bronze.csv").status_code == 404
+
+
+def test_csv_escapes_spreadsheet_formulas() -> None:
+    response = _csv_response("safe", [{"supplier": "=HYPERLINK('x')", "value": 1}])
+    assert "'=HYPERLINK" in response.body.decode("utf-8-sig")
