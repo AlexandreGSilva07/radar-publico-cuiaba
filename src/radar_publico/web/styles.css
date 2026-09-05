@@ -2012,6 +2012,65 @@ td small {
   height: 560px;
 }
 
+.privacy-panel {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  margin: -12px 0 28px;
+  padding: 18px 20px;
+  border: 1px solid #cfe4dd;
+  border-radius: 13px;
+  background: #eef7f4;
+}
+
+.privacy-panel h2 {
+  margin: 4px 0 6px;
+  color: var(--ink);
+  font-size: 0.92rem;
+  letter-spacing: -0.018em;
+}
+
+.privacy-panel p:last-child {
+  max-width: 980px;
+  margin: 0;
+  color: #587078;
+  font-size: 0.68rem;
+  line-height: 1.6;
+}
+
+.privacy-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--green-dark);
+  background: white;
+  box-shadow: var(--shadow-sm);
+}
+
+.privacy-icon svg {
+  width: 19px;
+  fill: none;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
+.document-mask {
+  display: inline-flex;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: #52666e;
+  background: #f7f9f8;
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 0.64rem;
+  white-space: nowrap;
+}
+
 @media (max-width: 1200px) {
   .executive-hero {
     grid-template-columns: minmax(0, 1fr) minmax(300px, 0.72fr);

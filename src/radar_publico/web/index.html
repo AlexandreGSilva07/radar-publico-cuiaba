@@ -7,10 +7,10 @@
     <meta name="description" content="Inteligência comercial sobre compras públicas de Cuiabá.">
     <title>Radar Público Cuiabá</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/styles.css?v=5">
+    <link rel="stylesheet" href="/styles.css?v=6">
     <script src="/charts-lib/theme.js?v=1" defer></script>
     <script src="/charts-lib/charts.js?v=1" defer></script>
-    <script src="/app.js?v=5" defer></script>
+    <script src="/app.js?v=6" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#content">Ir para o conteúdo</a>
@@ -52,6 +52,11 @@
           <a class="nav-link" href="#expenses" data-view="expenses">
             <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20V7"/></svg>
             <span>Execução financeira</span>
+          </a>
+          <p class="nav-label">Controle social</p>
+          <a class="nav-link" href="#people" data-view="people">
+            <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3"/><path d="M5.5 20c.4-4.1 2.6-6 6.5-6s6.1 1.9 6.5 6"/><path d="m18 5 2 2-4 4-2 .5.5-2z"/></svg>
+            <span>Credores PF</span>
           </a>
           <p class="nav-label">Sistema</p>
           <a class="nav-link" href="#quality" data-view="quality">
@@ -208,13 +213,13 @@
         </section>
 
         <section class="view" id="view-expenses" data-title="Execução financeira">
-          <div class="section-heading"><div><p class="eyebrow">PAGAMENTOS</p><h1>Execução por empresa</h1><p>Apenas credores com CNPJ válido; pessoas físicas são suprimidas.</p></div><div class="metric-pill"><span id="expenses-total">—</span> empresas</div></div>
+          <div class="section-heading"><div><p class="eyebrow">PAGAMENTOS</p><h1>Execução por empresa</h1><p>Credores com CNPJ válido; pessoas físicas têm uma visão própria de controle social.</p></div><div class="metric-pill"><span id="expenses-total">—</span> empresas</div></div>
           <div class="insight-strip">
             <article><span class="insight-icon purple"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20V7"/></svg></span><div><small>EMPENHADO</small><strong id="expenses-committed">—</strong><p>obrigações reconhecidas</p></div></article>
             <article><span class="insight-icon green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v12H4zM7 12h10M8 16h3"/></svg></span><div><small>VALOR PAGO</small><strong id="expenses-paid">—</strong><p>recursos já transferidos</p></div></article>
             <article><span class="insight-icon amber"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><div><small>SALDO A PAGAR</small><strong id="expenses-balance">—</strong><p>diferença ainda em aberto</p></div></article>
           </div>
-          <div class="workspace-intro"><div><p class="eyebrow">FLUXO FINANCEIRO</p><h2>Quem recebeu mais e quanto do empenho virou pagamento</h2></div><small>Visão anual · pessoas físicas permanecem suprimidas</small></div>
+          <div class="workspace-intro"><div><p class="eyebrow">FLUXO FINANCEIRO</p><h2>Quem recebeu mais e quanto do empenho virou pagamento</h2></div><small>Empresas com CNPJ · visão anual</small></div>
           <div class="dashboard-grid workspace-charts">
             <article class="panel bi-panel span-6"><div class="bi-chart bi-chart-ranking" id="expenses-leaders-chart" role="img" aria-label="Credores com maior valor pago"></div></article>
             <article class="panel bi-panel span-6"><div class="bi-chart bi-chart-ranking" id="expenses-rate-chart" role="img" aria-label="Taxa de pagamento dos principais credores"></div></article>
@@ -224,10 +229,31 @@
           <article class="panel"><div class="table-wrap"><table class="data-table" aria-label="Execução financeira por empresa"><thead><tr><th>Empresa</th><th>CNPJ</th><th class="numeric">Registros</th><th class="numeric">Empenhado</th><th class="numeric">Pago</th><th>Execução</th></tr></thead><tbody id="expenses-body"></tbody></table></div><div class="pagination" id="expenses-pagination"></div></article>
         </section>
 
+        <section class="view" id="view-people" data-title="Credores pessoa física">
+          <div class="section-heading"><div><p class="eyebrow">CONTROLE SOCIAL</p><h1>Credores pessoa física</h1><p>Valores públicos por nome do credor, com CPF mascarado desde a entrada na camada analítica.</p></div><div class="metric-pill"><span id="people-total">—</span> pessoas</div></div>
+          <div class="insight-strip">
+            <article><span class="insight-icon blue"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3"/><path d="M5.5 20c.4-4.1 2.6-6 6.5-6s6.1 1.9 6.5 6"/></svg></span><div><small>PESSOAS IDENTIFICADAS</small><strong id="people-count">—</strong><p>credores no exercício</p></div></article>
+            <article><span class="insight-icon purple"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20V7"/></svg></span><div><small>EMPENHADO PARA PF</small><strong id="people-committed">—</strong><p>obrigações reconhecidas</p></div></article>
+            <article><span class="insight-icon green"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v12H4zM7 12h10M8 16h3"/></svg></span><div><small>PAGO PARA PF</small><strong id="people-paid">—</strong><p>recursos transferidos</p></div></article>
+          </div>
+          <div class="workspace-intro"><div><p class="eyebrow">TRANSPARÊNCIA FINANCEIRA</p><h2>Volume executado e principais recebedores pessoa física</h2></div><small id="people-scope">Portal da Transparência de Cuiabá · ano —</small></div>
+          <div class="dashboard-grid workspace-charts">
+            <article class="panel bi-panel span-7"><div class="bi-chart bi-chart-ranking" id="people-leaders-chart" role="img" aria-label="Pessoas físicas com maior valor pago"></div></article>
+            <article class="panel bi-panel span-5"><div class="bi-chart bi-chart-ranking" id="people-stages-chart" role="img" aria-label="Estágios da execução financeira para pessoas físicas"></div></article>
+          </div>
+          <article class="privacy-panel" aria-labelledby="people-privacy-title">
+            <span class="privacy-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3 8 3v5c0 5.3-3.2 8.6-8 10-4.8-1.4-8-4.7-8-10V6z"/><path d="M9 12h6M12 9v6"/></svg></span>
+            <div><p class="eyebrow">USO RESPONSÁVEL</p><h2 id="people-privacy-title">Transparência sem transformar pessoas em leads</h2><p>O nome e os valores vêm da fonte municipal. O CPF completo não chega à Silver, à Gold, à API, ao CSV ou ao navegador: somente a máscara parcial é preservada para distinguir homônimos. Estes registros não recebem enriquecimento, perfil comercial ou score de prospecção.</p></div>
+          </article>
+          <div class="detail-heading"><div><p class="eyebrow">DETALHAMENTO</p><h2>Pagamentos por credor pessoa física</h2></div></div>
+          <div class="filter-bar"><label class="search-field">⌕<input id="people-search" type="search" placeholder="Buscar nome ou trecho visível do CPF…" aria-label="Buscar credores pessoa física por nome ou CPF mascarado"></label><button class="button primary" data-filter="people">Aplicar filtro</button></div>
+          <article class="panel"><div class="table-wrap"><table class="data-table" aria-label="Execução financeira por pessoa física"><thead><tr><th>Credor</th><th>CPF mascarado</th><th class="numeric">Empenhado</th><th class="numeric">Liquidado</th><th class="numeric">Pago</th><th>Execução</th></tr></thead><tbody id="people-body"></tbody></table></div><div class="pagination" id="people-pagination"></div></article>
+        </section>
+
         <section class="view" id="view-quality" data-title="Qualidade dos dados">
           <div class="section-heading"><div><p class="eyebrow">CONFIANÇA</p><h1>Qualidade e cobertura</h1><p>Veja exatamente o que entrou, foi rejeitado ou protegido no tratamento.</p></div><div class="quality-seal">✓<span>ETL<br><strong>AUDITÁVEL</strong></span></div></div>
           <div class="quality-grid" id="quality-grid"></div>
-          <article class="panel methodology"><div><p class="eyebrow">METODOLOGIA</p><h2>O que estes indicadores significam</h2><p>As páginas originais são armazenadas com SHA-256. A transformação aceita apenas ciclos integralmente reconciliados, normaliza valores sem ponto flutuante e remove CPFs antes da camada analítica. Duplicatas e registros inválidos ficam contabilizados, sem exposição do conteúdo sensível.</p></div><a href="/api/docs" target="_blank" class="button secondary">Explorar API</a></article>
+          <article class="panel methodology"><div><p class="eyebrow">METODOLOGIA</p><h2>O que estes indicadores significam</h2><p>As páginas originais são armazenadas com SHA-256. A transformação aceita apenas ciclos integralmente reconciliados, normaliza valores sem ponto flutuante e substitui CPFs completos por máscaras antes da camada analítica. Duplicatas e registros inválidos ficam contabilizados, sem exposição do documento integral.</p></div><a href="/api/docs" target="_blank" class="button secondary">Explorar API</a></article>
         </section>
       </main>
     </div>

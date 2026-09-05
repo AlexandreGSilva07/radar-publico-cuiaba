@@ -7,6 +7,7 @@ const titles = {
   suppliers: "Fornecedores",
   agencies: "Órgãos",
   expenses: "Execução financeira",
+  people: "Credores pessoa física",
   quality: "Qualidade dos dados",
 };
 
@@ -17,13 +18,14 @@ const exportsByView = {
   suppliers: "suppliers",
   agencies: "agencies",
   expenses: "expenses",
+  people: "person-creditors",
   quality: "opportunities",
 };
 
 const appState = {
   currentView: "overview",
   loaded: new Set(),
-  pages: { opportunities: 1, contracts: 1, suppliers: 1, agencies: 1, expenses: 1 },
+  pages: { opportunities: 1, contracts: 1, suppliers: 1, agencies: 1, expenses: 1, people: 1 },
 };
 
 const currency = new Intl.NumberFormat("pt-BR", {
@@ -187,7 +189,7 @@ function applyContext(summary, metadata) {
   element("#kpi-contract-count").textContent = `${integer.format(summary.contract_count)} contratos analisados`;
   element("#kpi-paid").textContent = money(summary.paid_value, true);
   element("#kpi-paid").title = money(summary.paid_value);
-  element("#kpi-creditors").textContent = `${integer.format(summary.creditor_count)} registros financeiros consolidados`;
+  element("#kpi-creditors").textContent = `${integer.format(summary.company_creditor_count)} empresas + ${integer.format(summary.person_creditor_count)} pessoas`;
 
   element("#opportunities-live").textContent = integer.format(summary.open_procurements);
   element("#opportunities-estimated").textContent = money(summary.estimated_value, true);
@@ -198,9 +200,13 @@ function applyContext(summary, metadata) {
   element("#agencies-procurements").textContent = integer.format(summary.procurement_count);
   element("#agencies-open").textContent = integer.format(summary.open_procurements);
   element("#agencies-contracts").textContent = integer.format(summary.contract_count);
-  element("#expenses-committed").textContent = money(summary.committed_value, true);
-  element("#expenses-paid").textContent = money(summary.paid_value, true);
-  element("#expenses-balance").textContent = money(summary.committed_balance, true);
+  element("#expenses-committed").textContent = money(summary.company_committed_value, true);
+  element("#expenses-paid").textContent = money(summary.company_paid_value, true);
+  element("#expenses-balance").textContent = money(summary.company_committed_balance, true);
+  element("#people-count").textContent = integer.format(summary.person_creditor_count);
+  element("#people-committed").textContent = money(summary.person_committed_value, true);
+  element("#people-paid").textContent = money(summary.person_paid_value, true);
+  element("#people-scope").textContent = `${metadata.source} · ano ${summary.year} · filtros atuam no detalhamento`;
 }
 
 async function loadContext(force = false) {
@@ -234,7 +240,7 @@ function renderOverviewCharts(summary, analytics) {
   const paymentRate = Number(summary.paid_value) / Math.max(Number(summary.committed_value), 1) * 100;
   Charts.barList("finance-stage-chart", {
     title: "Do empenho ao pagamento",
-    subtitle: `${paymentRate.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% do empenhado já foi pago · R$ bilhões`,
+    subtitle: `${paymentRate.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% do empenhado já foi pago · empresas e pessoas · R$ bilhões`,
     plotOptions: { barList: { autoHeight: false, valueSuffix: " bi", barHeight: 23, rowGap: 24 } },
     series: [{ name: "Valor", data: [
       { name: "Empenhado", y: rounded(Number(summary.committed_value) / 1e9, 2), color: "#10252d" },
@@ -367,7 +373,7 @@ function renderSupplierCharts(analytics) {
 
   Charts.barList("supplier-payment-chart", {
     title: "Maiores fluxos pagos no exercício",
-    subtitle: "Seis credores com maior valor pago · R$ milhões",
+    subtitle: "Seis empresas com maior valor pago · R$ milhões",
     plotOptions: { barList: { autoHeight: false, valueSuffix: " mi", barHeight: 18, rowGap: 13 } },
     series: [{ name: "Pago", data: analytics.expense_leaders.slice(0, 6).map((item, index) => ({
       name: shortName(item.supplier_name), y: rounded(Number(item.paid_value) / 1e6),
@@ -400,7 +406,7 @@ function renderExpenseCharts(analytics) {
   const paymentLeader = leaders[0] || { supplier_name: "Nenhum credor", paid_value: 0 };
   Charts.barList("expenses-leaders-chart", {
     title: `${shortName(paymentLeader.supplier_name, 32)} recebeu ${money(paymentLeader.paid_value, true)}`,
-    subtitle: "Seis credores com maior valor pago · R$ milhões",
+    subtitle: "Seis empresas com maior valor pago · R$ milhões",
     plotOptions: { barList: { autoHeight: false, valueSuffix: " mi", barHeight: 18, rowGap: 13 } },
     series: [{ name: "Pago", data: leaders.map((item, index) => ({
       name: shortName(item.supplier_name), y: rounded(Number(item.paid_value) / 1e6),
@@ -422,6 +428,32 @@ function renderExpenseCharts(analytics) {
   });
 }
 
+function renderPeopleCharts(summary, analytics) {
+  const leaders = analytics.top_person_creditors.slice(0, 7);
+  const paymentLeader = leaders[0] || { person_name: "Nenhum credor", paid_value: 0 };
+  Charts.barList("people-leaders-chart", {
+    title: `${shortName(paymentLeader.person_name, 34)} recebeu ${money(paymentLeader.paid_value, true)}`,
+    subtitle: `Sete maiores pagamentos a pessoas físicas · ${summary.year} · R$ milhões`,
+    plotOptions: { barList: { autoHeight: false, valueSuffix: " mi", barHeight: 18, rowGap: 11 } },
+    series: [{ name: "Pago", data: leaders.map((item, index) => ({
+      name: shortName(item.person_name), y: rounded(Number(item.paid_value) / 1e6, 2),
+      color: index === 0 ? Charts.theme.colors[1] : Charts.theme.muted,
+    })) }],
+  });
+
+  const paymentRate = Number(summary.person_paid_value) / Math.max(Number(summary.person_committed_value), 1) * 100;
+  Charts.barList("people-stages-chart", {
+    title: `${paymentRate.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% do empenhado para PF foi pago`,
+    subtitle: `Execução agregada · ${summary.year} · R$ milhões`,
+    plotOptions: { barList: { autoHeight: false, valueSuffix: " mi", barHeight: 23, rowGap: 24 } },
+    series: [{ name: "Valor", data: [
+      { name: "Empenhado", y: rounded(Number(summary.person_committed_value) / 1e6, 2), color: Charts.theme.colors[0] },
+      { name: "Liquidado", y: rounded(Number(summary.person_settled_value) / 1e6, 2), color: Charts.theme.colors[2] },
+      { name: "Pago", y: rounded(Number(summary.person_paid_value) / 1e6, 2), color: Charts.theme.colors[1] },
+    ] }],
+  });
+}
+
 async function rerenderCurrentCharts() {
   const view = appState.currentView;
   if (!appState.loaded.has(view) || view === "quality") return;
@@ -435,6 +467,10 @@ async function rerenderCurrentCharts() {
     else if (view === "suppliers") renderSupplierCharts(analytics);
     else if (view === "agencies") renderAgencyCharts(analytics);
     else if (view === "expenses") renderExpenseCharts(analytics);
+    else if (view === "people") {
+      const [summary] = await getContext();
+      renderPeopleCharts(summary, analytics);
+    }
   } catch (error) {
     showError(error);
   }
@@ -575,6 +611,33 @@ async function loadExpenses(page = 1) {
   } catch (error) { showError(error); }
 }
 
+async function loadPeople(page = 1) {
+  showStatus("Consultando credores pessoa física…");
+  const parameters = queryString({ page, page_size: 20, q: element("#people-search").value.trim() });
+  try {
+    const needsCharts = !appState.loaded.has("people");
+    const [payload, analytics, context] = await Promise.all([
+      api(`/api/person-creditors?${parameters}`),
+      needsCharts ? getAnalytics() : Promise.resolve(null),
+      needsCharts ? getContext() : Promise.resolve(null),
+    ]);
+    appState.pages.people = page;
+    element("#people-total").textContent = integer.format(payload.total);
+    element("#people-body").innerHTML = payload.items.length ? payload.items.map((item) => {
+      const ratio = Number(item.committed_value) > 0 ? Number(item.paid_value) / Number(item.committed_value) * 100 : 0;
+      const trackRatio = Math.max(0, Math.min(100, ratio));
+      return `<tr><td><strong>${html(clipped(item.person_name, 58))}</strong><small>Registro público ${html(item.creditor_id)} · ano ${html(item.year)}</small></td>
+        <td><span class="document-mask">${html(text(item.cpf_masked, "CPF não informado"))}</span></td>
+        <td class="numeric"><strong>${html(money(item.committed_value))}</strong></td><td class="numeric"><strong>${html(money(item.settled_value))}</strong></td>
+        <td class="numeric"><strong>${html(money(item.paid_value))}</strong></td><td><div class="progress"><div class="progress-track"><i style="width:${trackRatio}%"></i></div><small>${ratio.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</small></div></td></tr>`;
+    }).join("") : emptyRow(6);
+    renderPagination("#people-pagination", payload, loadPeople);
+    if (analytics && context) renderPeopleCharts(context[0], analytics);
+    appState.loaded.add("people");
+    showStatus("Credores pessoa física atualizados.", "success");
+  } catch (error) { showError(error); }
+}
+
 async function loadQuality() {
   showStatus("Verificando cobertura do ETL…");
   try {
@@ -583,12 +646,12 @@ async function loadQuality() {
       <header><h2>${html(item.resource)}</h2>${badge(item.acceptance_rate === 100 ? "Íntegro" : "Com ressalvas")}</header>
       <strong>${Number(item.acceptance_rate).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%</strong><p>taxa de aceitação · ano ${html(item.year)}</p>
       <div class="quality-stats"><span>Origem<strong>${integer.format(item.source_records)}</strong></span><span>Rejeitados<strong>${integer.format(item.rejected_records)}</strong></span>
-      <span>CPF protegido<strong>${integer.format(item.cpf_suppressed_records)}</strong></span></div></article>`).join("");
+      <span>CPF mascarado<strong>${integer.format(item.cpf_masked_records ?? item.cpf_suppressed_records ?? 0)}</strong></span></div></article>`).join("");
     appState.loaded.add("quality"); showStatus("Qualidade verificada.", "success");
   } catch (error) { showError(error); }
 }
 
-const loaders = { overview: loadOverview, opportunities: loadOpportunities, contracts: loadContracts, suppliers: loadSuppliers, agencies: loadAgencies, expenses: loadExpenses, quality: loadQuality };
+const loaders = { overview: loadOverview, opportunities: loadOpportunities, contracts: loadContracts, suppliers: loadSuppliers, agencies: loadAgencies, expenses: loadExpenses, people: loadPeople, quality: loadQuality };
 function navigate(viewName) {
   const target = titles[viewName] ? viewName : "overview";
   appState.currentView = target;
