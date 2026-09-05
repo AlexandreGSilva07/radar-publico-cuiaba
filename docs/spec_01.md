@@ -1,9 +1,9 @@
-# SPEC 01 — MVP de Inteligência de Compras Públicas de Cuiabá
+# SPEC 01 — Radar Público Cuiabá
 
 **Status:** proposta inicial  
 **Versão:** 0.1  
 **Data:** 2026-09-04  
-**Produto:** Cuiabá Inteligência Pública  
+**Produto:** Radar Público Cuiabá
 **Público inicial:** empresas que vendem, ou podem vender, para órgãos públicos em Cuiabá.
 
 ## 1. Resumo executivo
@@ -573,16 +573,63 @@ Cada execução deve registrar:
 - pelo menos um usuário declara que deixaria de acompanhar manualmente o portal para usar o painel;
 - registrar quais filtros, categorias e alertas são mais usados antes de ampliar fontes.
 
-## 17. Decisões pendentes
+## 17. Decisões fechadas para o MVP
 
-1. Janela histórica inicial: 24 meses, 36 meses ou histórico completo?
-2. Segmento de lançamento: amplo ou um vertical prioritário?
-3. Forma de venda: assinatura por empresa, consultoria ou white label?
-4. Frequência de atualização percebida pelo cliente: diária ou semanal?
-5. Acesso de clientes: dashboard fechado, relatórios exportáveis ou ambos?
-6. Fonte de produção CNPJ: somente cache BrasilAPI inicialmente ou importação do recorte Receita desde a primeira versão?
-7. Licença, termos e política de uso dos dados na oferta comercial.
+1. Janela inicial: ano corrente e dois anos anteriores.
+2. Público: fornecedores PJ e consultorias de licitação, sem vertical obrigatório.
+3. Oferta: dashboard fechado por assinatura, exportação CSV e onboarding assistido.
+4. Atualização: contratos/licitações diária; despesas e CNPJ semanal.
+5. CNPJ: BrasilAPI com cache e apenas para CNPJ válido encontrado na fonte.
+6. Atas, adesões, PNCP, sanções e IBGE são extensões e não bloqueiam o MVP vendável.
+7. Antes de clientes externos: autenticação, termos de uso, backup e restauração.
 
-## 18. Próximo artefato
+## 18. Contrato operacional
 
-Após aprovação desta spec, criar `docs/plan_01.md` com tarefas executáveis em ordem, dependências, critérios de pronto e comandos de validação para as Fases 0 e 1.
+### 18.1 Stack fechada
+
+| Camada | Tecnologia |
+|---|---|
+| Coleta e ETL | Python 3.12, HTTPX, Pydantic e Tenacity |
+| Bronze | JSON gzip imutável em disco local |
+| Analítico | DuckDB; Parquet apenas quando necessário |
+| API e dashboard | FastAPI servindo API JSON e frontend HTML/CSS/JavaScript responsivo |
+| Testes | pytest, respx, Ruff e mypy |
+| Execução | `uv`; Docker Compose como empacotamento opcional |
+
+O frontend sem build separado é uma decisão de velocidade e confiabilidade do MVP. A API permanece desacoplada por endpoints JSON, permitindo migrar para React sem reescrever o ETL.
+
+### 18.2 Contratos de segurança e identidade
+
+- toda linha analítica referencia `raw_id`, endpoint, índice, horário e hash;
+- dinheiro usa `DECIMAL(18,2)`; datas sentinela viram `NULL`;
+- CPF não aparece em Silver, Gold, API, tela, CSV ou log;
+- vínculo empresarial só é `exact` com CNPJ de 14 dígitos e DV válido;
+- vencedor de licitação apenas por nome permanece `unmatched`;
+- contrato só aponta para licitação por identificador oficial existente;
+- uma carga parcial nunca alimenta indicador apresentado como completo.
+
+### 18.3 Produto mínimo navegável
+
+O dashboard final desta execução contém:
+
+1. visão executiva com valores, contagens, cobertura e atualização;
+2. oportunidades de licitação com busca e filtros;
+3. contratos ativos e radar de vencimentos;
+4. órgãos compradores e fornecedores PJ;
+5. despesas pagas agregadas por credor CNPJ;
+6. qualidade/proveniência e exportação CSV.
+
+### 18.4 Gates
+
+| Gate | Aceite |
+|---|---|
+| G0 | instalação, testes, lint e tipagem passam |
+| G1 | endpoints, filtros e paginação validados |
+| G2 | Bronze idempotente e cobertura reconciliada |
+| G3 | Silver tipada, rastreável e sem CPF |
+| G4 | Gold reproduzível e sem relação aproximada |
+| G5 | API e dashboard respondem localmente e exibem origem/cobertura |
+
+### 18.5 Execução e recuperação
+
+Cada tarefa coerente recebe testes, commit e push antes da próxima. Dados operacionais e bancos continuam fora do Git. Subagentes não executam implementação; somente uma decisão técnica realmente ambígua pode ser consultada ao GPT-5.6 Sol em `xhigh`.
