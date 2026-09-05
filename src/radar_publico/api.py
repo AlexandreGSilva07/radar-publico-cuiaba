@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -9,7 +10,7 @@ from typing import Any
 
 import duckdb
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 
 from radar_publico import __version__
 
@@ -54,6 +55,51 @@ class AnalyticsDatabase:
         finally:
             connection.close()
 
+    def profiles(self, cnpjs: list[str]) -> dict[str, dict[str, Any]]:
+        path = self.enrichment_path
+        if path is None or not path.exists() or not cnpjs:
+            return {}
+        connection = duckdb.connect(str(path), read_only=True)
+        try:
+            placeholders = ",".join("?" for _ in cnpjs)
+            result = connection.execute(
+                "SELECT cnpj, legal_name, trade_name, registration_status, company_size, "
+                "primary_cnae, primary_cnae_description, city, state "
+                f"FROM company_profile WHERE cnpj IN ({placeholders})",
+                cnpjs,
+            )
+            columns = [item[0] for item in result.description]
+            return {str(row[0]): dict(zip(columns, row, strict=True)) for row in result.fetchall()}
+        finally:
+            connection.close()
+
+
+def _paged(
+    database: AnalyticsDatabase,
+    *,
+    select_sql: str,
+    count_sql: str,
+    parameters: list[object],
+    page: int,
+    page_size: int,
+) -> dict[str, Any]:
+    total = int(database.row(count_sql, parameters)["total"])
+    items = database.rows(
+        f"{select_sql} LIMIT ? OFFSET ?", [*parameters, page_size, (page - 1) * page_size]
+    )
+    return {
+        "items": items,
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "total_pages": math.ceil(total / page_size),
+    }
+
+
+def _search_pattern(query: str) -> str:
+    escaped = query.casefold().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
 
 def create_app(
     analytics_path: Path = Path("data/analytics.duckdb"),
@@ -97,6 +143,207 @@ def create_app(
         except (duckdb.Error, FileNotFoundError, LookupError) as exc:
             raise HTTPException(status_code=503, detail="analytics database unavailable") from exc
 
+    @application.get("/api/opportunities")
+    def opportunities(
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, le=100),
+        q: str | None = Query(None, max_length=100),
+        agency: str | None = Query(None, max_length=200),
+        status: str | None = Query(None, max_length=40),
+        min_value: float | None = Query(None, ge=0),
+    ) -> dict[str, Any]:
+        conditions = ["1=1"]
+        parameters: list[object] = []
+        if q:
+            conditions.append("lower(coalesce(object_text,'')) LIKE ? ESCAPE '\\\\'")
+            parameters.append(_search_pattern(q))
+        if agency:
+            conditions.append("agency=?")
+            parameters.append(agency)
+        if status:
+            conditions.append("status=?")
+            parameters.append(status)
+        if min_value is not None:
+            conditions.append("coalesce(estimated_value,0)>=?")
+            parameters.append(min_value)
+        where = " AND ".join(conditions)
+        try:
+            return _paged(
+                database,
+                select_sql=f"SELECT * FROM gold_opportunities WHERE {where} "
+                "ORDER BY relevance_score DESC, session_on DESC NULLS LAST, procurement_id DESC",
+                count_sql=f"SELECT count(*) AS total FROM gold_opportunities WHERE {where}",
+                parameters=parameters,
+                page=page,
+                page_size=page_size,
+            )
+        except (duckdb.Error, FileNotFoundError) as exc:
+            raise HTTPException(status_code=503, detail="analytics database unavailable") from exc
+
+    @application.get("/api/contracts")
+    def contracts(
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, le=100),
+        q: str | None = Query(None, max_length=100),
+        agency: str | None = Query(None, max_length=200),
+        status: str | None = Query(None, max_length=80),
+    ) -> dict[str, Any]:
+        conditions = ["1=1"]
+        parameters: list[object] = []
+        if q:
+            conditions.append(
+                "(lower(coalesce(object_text,'')) LIKE ? ESCAPE '\\\\' OR "
+                "lower(coalesce(supplier_name,'')) LIKE ? ESCAPE '\\\\')"
+            )
+            pattern = _search_pattern(q)
+            parameters.extend([pattern, pattern])
+        if agency:
+            conditions.append("agency=?")
+            parameters.append(agency)
+        if status:
+            conditions.append("status=?")
+            parameters.append(status)
+        where = " AND ".join(conditions)
+        columns = (
+            "contract_id, number, year, object_text, agency, supplier_name, cnpj, status, "
+            "signed_on, starts_on, ends_on, contract_type, category, original_value, "
+            "current_value, has_document, procurement_id, procurement_status, procurement_linked"
+        )
+        try:
+            return _paged(
+                database,
+                select_sql=f"SELECT {columns} FROM gold_contract_links WHERE {where} "
+                "ORDER BY current_value DESC NULLS LAST, contract_id DESC",
+                count_sql=f"SELECT count(*) AS total FROM gold_contract_links WHERE {where}",
+                parameters=parameters,
+                page=page,
+                page_size=page_size,
+            )
+        except (duckdb.Error, FileNotFoundError) as exc:
+            raise HTTPException(status_code=503, detail="analytics database unavailable") from exc
+
+    @application.get("/api/renewals")
+    def renewals(
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, le=100),
+        within_days: int = Query(180, ge=1, le=1825),
+    ) -> dict[str, Any]:
+        parameters: list[object] = [within_days]
+        where = "days_to_end BETWEEN 0 AND ?"
+        try:
+            return _paged(
+                database,
+                select_sql=f"SELECT * FROM gold_contract_renewals WHERE {where} "
+                "ORDER BY days_to_end, current_value DESC NULLS LAST",
+                count_sql=f"SELECT count(*) AS total FROM gold_contract_renewals WHERE {where}",
+                parameters=parameters,
+                page=page,
+                page_size=page_size,
+            )
+        except (duckdb.Error, FileNotFoundError) as exc:
+            raise HTTPException(status_code=503, detail="analytics database unavailable") from exc
+
+    @application.get("/api/agencies")
+    def agencies(
+        page: int = Query(1, ge=1),
+        page_size: int = Query(50, ge=1, le=100),
+        q: str | None = Query(None, max_length=100),
+    ) -> dict[str, Any]:
+        parameters: list[object] = []
+        where = "1=1"
+        if q:
+            where = "lower(agency) LIKE ? ESCAPE '\\\\'"
+            parameters.append(_search_pattern(q))
+        try:
+            return _paged(
+                database,
+                select_sql=f"SELECT * FROM gold_agencies WHERE {where} "
+                "ORDER BY contract_value DESC, estimated_value DESC",
+                count_sql=f"SELECT count(*) AS total FROM gold_agencies WHERE {where}",
+                parameters=parameters,
+                page=page,
+                page_size=page_size,
+            )
+        except (duckdb.Error, FileNotFoundError) as exc:
+            raise HTTPException(status_code=503, detail="analytics database unavailable") from exc
+
+    @application.get("/api/suppliers")
+    def suppliers(
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, le=100),
+        q: str | None = Query(None, max_length=100),
+        contracted_only: bool = Query(False),
+    ) -> dict[str, Any]:
+        conditions = ["1=1"]
+        parameters: list[object] = []
+        if q:
+            conditions.append(
+                "(lower(coalesce(supplier_name,'')) LIKE ? ESCAPE '\\\\' OR cnpj LIKE ?)"
+            )
+            pattern = _search_pattern(q)
+            parameters.extend([pattern, f"%{''.join(filter(str.isdigit, q))}%"])
+        if contracted_only:
+            conditions.append("contract_count>0")
+        where = " AND ".join(conditions)
+        try:
+            result = _paged(
+                database,
+                select_sql=f"SELECT * FROM gold_suppliers WHERE {where} "
+                "ORDER BY contract_value DESC, paid_value DESC",
+                count_sql=f"SELECT count(*) AS total FROM gold_suppliers WHERE {where}",
+                parameters=parameters,
+                page=page,
+                page_size=page_size,
+            )
+            items = result["items"]
+            profiles = database.profiles([str(item["cnpj"]) for item in items])
+            for item in items:
+                item["profile"] = profiles.get(str(item["cnpj"]))
+            return result
+        except (duckdb.Error, FileNotFoundError) as exc:
+            raise HTTPException(status_code=503, detail="analytics database unavailable") from exc
+
+    @application.get("/api/expenses")
+    def expenses(
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, le=100),
+        q: str | None = Query(None, max_length=100),
+    ) -> dict[str, Any]:
+        parameters: list[object] = []
+        where = "expense_records>0"
+        if q:
+            where += " AND lower(coalesce(supplier_name,'')) LIKE ? ESCAPE '\\\\'"
+            parameters.append(_search_pattern(q))
+        columns = "cnpj, supplier_name, expense_records, committed_value, paid_value"
+        try:
+            return _paged(
+                database,
+                select_sql=f"SELECT {columns} FROM gold_suppliers WHERE {where} "
+                "ORDER BY paid_value DESC",
+                count_sql=f"SELECT count(*) AS total FROM gold_suppliers WHERE {where}",
+                parameters=parameters,
+                page=page,
+                page_size=page_size,
+            )
+        except (duckdb.Error, FileNotFoundError) as exc:
+            raise HTTPException(status_code=503, detail="analytics database unavailable") from exc
+
+    @application.get("/api/pipeline")
+    def pipeline() -> list[dict[str, Any]]:
+        try:
+            return database.rows(
+                "SELECT * FROM gold_procurement_pipeline ORDER BY procurement_count DESC"
+            )
+        except (duckdb.Error, FileNotFoundError) as exc:
+            raise HTTPException(status_code=503, detail="analytics database unavailable") from exc
+
+    @application.get("/api/quality")
+    def quality() -> list[dict[str, Any]]:
+        try:
+            return database.rows("SELECT * FROM gold_quality ORDER BY resource")
+        except (duckdb.Error, FileNotFoundError) as exc:
+            raise HTTPException(status_code=503, detail="analytics database unavailable") from exc
+
     @application.get("/")
     def root() -> dict[str, str]:
         return {"product": "Radar Público Cuiabá", "api_docs": "/api/docs"}
@@ -109,4 +356,3 @@ app = create_app()
 
 def run(host: str = "127.0.0.1", port: int = 8000, reload: bool = False) -> None:
     uvicorn.run("radar_publico.api:app", host=host, port=port, reload=reload)
-

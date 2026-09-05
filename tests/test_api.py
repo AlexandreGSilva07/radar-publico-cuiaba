@@ -20,9 +20,12 @@ def _analytics(path: Path) -> None:
           has_document, source_run_id, source_hash
         ) VALUES (1, 2026, '', 'EM ANDAMENTO', 100, 80, true, 'run', 'hash');
         INSERT INTO silver_contracts(
-          contract_id, year, search_text, document_type, status, current_value,
+          contract_id, year, search_text, document_type, cnpj, status, current_value,
           has_document, source_run_id, source_hash
-        ) VALUES (2, 2026, '', 'missing', 'Contrato Vigente', 80, false, 'run', 'hash');
+        ) VALUES (
+          2, 2026, '', 'cnpj', '00000000000191', 'Contrato Vigente', 80,
+          false, 'run', 'hash'
+        );
         INSERT INTO silver_expenses(
           year, creditor_id, search_text, document_type, committed_value, settled_value,
           paid_value, source_run_id, source_hash
@@ -50,3 +53,29 @@ def test_health_metadata_and_summary(tmp_path: Path) -> None:
 def test_health_reports_missing_database(tmp_path: Path) -> None:
     client = TestClient(create_app(tmp_path / "missing.duckdb"))
     assert client.get("/api/health").status_code == 503
+
+
+def test_lists_are_paginated_and_filters_are_validated(tmp_path: Path) -> None:
+    analytics = tmp_path / "analytics.duckdb"
+    _analytics(analytics)
+    client = TestClient(create_app(analytics, tmp_path / "missing-enrichment.duckdb"))
+
+    opportunities = client.get("/api/opportunities", params={"page_size": 1}).json()
+    assert opportunities["total"] == 1
+    assert opportunities["items"][0]["status"] == "EM ANDAMENTO"
+    contracts = client.get("/api/contracts").json()
+    assert contracts["total"] == 1
+    assert "source_hash" not in contracts["items"][0]
+    suppliers = client.get("/api/suppliers", params={"contracted_only": True}).json()
+    assert suppliers["total"] == 1
+    assert suppliers["items"][0]["profile"] is None
+    assert client.get("/api/contracts", params={"page_size": 101}).status_code == 422
+
+
+def test_quality_and_pipeline_are_available(tmp_path: Path) -> None:
+    analytics = tmp_path / "analytics.duckdb"
+    _analytics(analytics)
+    client = TestClient(create_app(analytics))
+
+    assert client.get("/api/pipeline").json()[0]["status"] == "EM ANDAMENTO"
+    assert client.get("/api/quality").json()[0]["acceptance_rate"] == 100.0
