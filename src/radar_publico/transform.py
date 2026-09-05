@@ -17,7 +17,7 @@ from typing import Any
 import duckdb
 
 from radar_publico.collect import parse_page
-from radar_publico.normalize import document, money, search_text, source_date, text
+from radar_publico.normalize import document, masked_cpf, money, search_text, source_date, text
 
 
 class TransformError(RuntimeError):
@@ -193,7 +193,8 @@ def _procurement(record: dict[str, Any], run_id: str, source_hash: str) -> tuple
 def _expense(
     record: dict[str, Any], run_id: str, source_hash: str, year: int
 ) -> tuple[object, ...]:
-    document_type, cnpj = document(record.get("DespesaCredorDoc"))
+    raw_document = record.get("DespesaCredorDoc")
+    document_type, cnpj = document(raw_document)
     name = text(record.get("DespesaCredorNome"))
     legal_name = text(record.get("DespesaCredorRazao"))
     return (
@@ -204,6 +205,7 @@ def _expense(
         search_text(f"{name or ''} {legal_name or ''}"),
         document_type,
         cnpj,
+        masked_cpf(raw_document) if document_type == "cpf" else None,
         money(record.get("DespesaEmpenho")),
         money(record.get("DespesaLiquidacao")),
         money(record.get("DespesaPagamento")),
@@ -305,7 +307,7 @@ def build_analytics(
                     connection,
                     snapshot,
                     "silver_expenses",
-                    12,
+                    13,
                     lambda record, run_id, source_hash: _expense(
                         record, run_id, source_hash, snapshot.year
                     ),
@@ -314,7 +316,7 @@ def build_analytics(
             rejected[snapshot.resource] = failures
         connection.executemany(
             "INSERT INTO analytics_metadata VALUES (?,?)",
-            [("schema_version", "3"), ("source_year", str(year)), ("built_at", _now())],
+            [("schema_version", "4"), ("source_year", str(year)), ("built_at", _now())],
         )
         gold = files("radar_publico").joinpath("migrations/003_gold.sql").read_text()
         connection.execute(gold)

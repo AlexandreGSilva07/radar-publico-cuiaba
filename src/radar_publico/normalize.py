@@ -63,6 +63,14 @@ def document(value: object) -> tuple[str, str | None]:
     return "invalid", None
 
 
+def masked_cpf(value: object) -> str | None:
+    """Return a display-safe CPF mask without retaining the full identifier."""
+    digits = re.sub(r"\D", "", "" if value is None else str(value))
+    if len(digits) != 11:
+        return None
+    return f"***.{digits[3:6]}.{digits[6:9]}-**"
+
+
 def valid_cnpj(value: str) -> bool:
     if len(value) != 14 or not value.isdigit() or len(set(value)) == 1:
         return False

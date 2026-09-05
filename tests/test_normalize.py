@@ -4,7 +4,14 @@ from decimal import Decimal
 
 import pytest
 
-from radar_publico.normalize import NormalizeError, document, money, search_text, source_date
+from radar_publico.normalize import (
+    NormalizeError,
+    document,
+    masked_cpf,
+    money,
+    search_text,
+    source_date,
+)
 
 
 def test_money_accepts_portal_formats_without_float() -> None:
@@ -27,6 +34,12 @@ def test_document_never_returns_cpf() -> None:
     assert document("00000000191") == ("cpf", None)
     assert document(None) == ("missing", None)
     assert document("123") == ("invalid", None)
+
+
+def test_cpf_mask_keeps_only_the_publicly_useful_middle_digits() -> None:
+    assert masked_cpf("000.000.001-91") == "***.000.001-**"
+    assert masked_cpf("123") is None
+    assert masked_cpf(None) is None
 
 
 def test_search_text_removes_accents() -> None:

@@ -36,7 +36,7 @@ def _snapshot(
     state.finish_run(run.run_id, "succeeded")
 
 
-def test_builds_atomic_silver_and_suppresses_cpf(tmp_path: Path) -> None:
+def test_builds_atomic_silver_and_masks_cpf(tmp_path: Path) -> None:
     bronze_root = tmp_path / "bronze"
     store = BronzeStore(bronze_root)
     with State(tmp_path / "ops.duckdb") as state:
@@ -113,14 +113,25 @@ def test_builds_atomic_silver_and_suppresses_cpf(tmp_path: Path) -> None:
     assert report.rejected["contratos"] == 1
     connection = duckdb.connect(str(output), read_only=True)
     assert connection.execute("SELECT cnpj FROM silver_contracts").fetchone()[0] == "00000000000191"
-    assert connection.execute("SELECT document_type, cnpj FROM silver_expenses").fetchone() == (
+    assert connection.execute(
+        "SELECT document_type, cnpj, cpf_masked FROM silver_expenses"
+    ).fetchone() == (
         "cpf",
         None,
+        "***.000.001-**",
     )
     assert (
         connection.execute(
-            "SELECT cpf_suppressed_records FROM data_quality WHERE resource='despesas'"
+            "SELECT cpf_masked_records FROM data_quality WHERE resource='despesas'"
         ).fetchone()[0]
         == 1
+    )
+    columns = [row[0] for row in connection.execute("DESCRIBE silver_expenses").fetchall()]
+    assert "00000000191" not in " ".join(
+        str(value)
+        for row in connection.execute(
+            f"SELECT {', '.join(columns)} FROM silver_expenses"
+        ).fetchall()
+        for value in row
     )
     connection.close()

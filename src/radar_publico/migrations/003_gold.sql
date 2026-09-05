@@ -14,9 +14,23 @@ SELECT
   (SELECT count(*) FROM silver_contracts WHERE status='Contrato Vigente') AS active_contracts,
   (SELECT coalesce(sum(current_value), 0) FROM silver_contracts) AS contract_value,
   (SELECT count(*) FROM silver_expenses) AS creditor_count,
+  (SELECT count(*) FROM silver_expenses WHERE document_type='cnpj') AS company_creditor_count,
+  (SELECT count(*) FROM silver_expenses WHERE document_type='cpf') AS person_creditor_count,
   (SELECT coalesce(sum(committed_value), 0) FROM silver_expenses) AS committed_value,
   (SELECT coalesce(sum(settled_value), 0) FROM silver_expenses) AS settled_value,
   (SELECT coalesce(sum(paid_value), 0) FROM silver_expenses) AS paid_value,
+  (
+    SELECT coalesce(sum(committed_value), 0)
+    FROM silver_expenses WHERE document_type='cpf'
+  ) AS person_committed_value,
+  (
+    SELECT coalesce(sum(settled_value), 0)
+    FROM silver_expenses WHERE document_type='cpf'
+  ) AS person_settled_value,
+  (
+    SELECT coalesce(sum(paid_value), 0)
+    FROM silver_expenses WHERE document_type='cpf'
+  ) AS person_paid_value,
   (
     SELECT coalesce(sum(committed_value - paid_value), 0)
     FROM silver_expenses
@@ -125,6 +139,20 @@ SELECT
   coalesce(e.paid_value, 0) AS paid_value
 FROM contracts c FULL OUTER JOIN expenses e ON e.cnpj=c.cnpj;
 
+CREATE OR REPLACE VIEW gold_person_creditors AS
+SELECT
+  creditor_id,
+  year,
+  coalesce(creditor_legal_name, creditor_name, 'Nome não informado') AS person_name,
+  search_text AS person_search,
+  cpf_masked,
+  coalesce(committed_value, 0) AS committed_value,
+  coalesce(settled_value, 0) AS settled_value,
+  coalesce(paid_value, 0) AS paid_value,
+  round(100 * paid_value / nullif(committed_value, 0), 1) AS payment_rate
+FROM silver_expenses
+WHERE document_type='cpf';
+
 CREATE OR REPLACE VIEW gold_procurement_pipeline AS
 SELECT
   coalesce(status, 'NÃO INFORMADO') AS status,
@@ -153,7 +181,7 @@ SELECT
   accepted_records,
   rejected_records,
   cnpj_records,
-  cpf_suppressed_records,
+  cpf_masked_records,
   invalid_document_records,
   round(100.0 * accepted_records / nullif(source_records, 0), 2) AS acceptance_rate
 FROM data_quality;

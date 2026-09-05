@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS silver_expenses(
   search_text VARCHAR NOT NULL,
   document_type VARCHAR NOT NULL,
   cnpj VARCHAR,
+  cpf_masked VARCHAR,
   committed_value DECIMAL(18, 2),
   settled_value DECIMAL(18, 2),
   paid_value DECIMAL(18, 2),
@@ -76,7 +77,7 @@ CREATE TABLE IF NOT EXISTS data_quality(
   accepted_records INTEGER NOT NULL,
   rejected_records INTEGER NOT NULL,
   cnpj_records INTEGER NOT NULL,
-  cpf_suppressed_records INTEGER NOT NULL,
+  cpf_masked_records INTEGER NOT NULL,
   invalid_document_records INTEGER NOT NULL,
   PRIMARY KEY(resource, year)
 );
@@ -88,4 +89,3 @@ CREATE TABLE IF NOT EXISTS transform_rejections(
   reason VARCHAR NOT NULL,
   source_hash VARCHAR NOT NULL
 );
-
