@@ -12,6 +12,7 @@ from radar_publico.coverage import reports, require_valid
 from radar_publico.http import HttpError, PublicClient
 from radar_publico.sources import ManifestError, load_manifest
 from radar_publico.state import State, StateError
+from radar_publico.transform import TransformError, build_analytics
 
 app = typer.Typer(add_completion=False, invoke_without_command=True, no_args_is_help=True)
 
@@ -117,6 +118,30 @@ def coverage_command(
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
     typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+
+
+@app.command("transform")
+def transform_command(
+    year: int = typer.Option(...),
+    ops_path: Path = typer.Option(Path("data/ops.duckdb")),
+    bronze_path: Path = typer.Option(Path("data/bronze")),
+    output_path: Path = typer.Option(Path("data/analytics.duckdb")),
+) -> None:
+    """Reconstrói a camada Silver a partir de snapshots completos."""
+    try:
+        report = build_analytics(
+            ops_path=ops_path,
+            bronze_root=bronze_path,
+            output_path=output_path,
+            year=year,
+        )
+    except TransformError as exc:
+        typer.echo(f"Transformação falhou: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(
+        f"Silver pronta: year={report.year} counts={report.counts} "
+        f"rejected={report.rejected} path={report.output_path}"
+    )
 
 
 if __name__ == "__main__":
