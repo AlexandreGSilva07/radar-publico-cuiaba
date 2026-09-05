@@ -2082,7 +2082,7 @@ td small {
 
 .market-filterbar {
   display: grid;
-  grid-template-columns: minmax(230px, 1.5fr) repeat(5, minmax(104px, 0.72fr)) auto;
+  grid-template-columns: minmax(215px, 1.45fr) repeat(6, minmax(92px, 0.68fr)) auto;
   gap: 8px;
   margin: -7px 0 10px;
   padding: 10px;
@@ -2332,6 +2332,10 @@ td small {
   transform: translate(-50%, -50%) scale(1.25);
 }
 
+.map-marker.precise {
+  background: var(--green);
+}
+
 .map-marker span {
   position: absolute;
   inset: 25%;
@@ -2362,6 +2366,33 @@ td small {
   font-size: 0.49rem;
   font-weight: 850;
   letter-spacing: 0.09em;
+}
+
+.map-legend {
+  position: absolute;
+  top: 14px;
+  left: 112px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgb(255 255 255 / 84%);
+  font-size: 0.48rem;
+  font-weight: 700;
+}
+
+.map-legend i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+}
+
+.map-legend i.approximate {
+  margin-left: 3px;
+  background: var(--blue);
 }
 
 .map-empty {

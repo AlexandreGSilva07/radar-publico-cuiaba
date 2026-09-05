@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from dataclasses import dataclass
@@ -10,6 +11,7 @@ from decimal import Decimal, InvalidOperation
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 import duckdb
 
@@ -18,6 +20,7 @@ from radar_publico.normalize import NormalizeError, source_date, text, valid_cnp
 
 BRASIL_API_CNPJ = "https://brasilapi.com.br/api/cnpj/v1"
 BRASIL_API_CEP = "https://brasilapi.com.br/api/cep/v2"
+NOMINATIM_SEARCH = "https://nominatim.openstreetmap.org/search"
 
 
 class EnrichmentError(RuntimeError):
@@ -39,6 +42,16 @@ class GeocodingReport:
     attempted: int
     geocoded: int
     missing_coordinates: int
+    failed: int
+    cached: int
+
+
+@dataclass(frozen=True)
+class AddressGeocodingReport:
+    candidates: int
+    attempted: int
+    geocoded: int
+    not_found: int
     failed: int
     cached: int
 
@@ -371,4 +384,176 @@ def geocode_company_postal_codes(
         connection.close()
     return GeocodingReport(
         len(candidates), attempted, geocoded, missing_coordinates, failed, len(fresh)
+    )
+
+
+def _address_fingerprint(parts: tuple[object, ...]) -> str:
+    normalized = "|".join(text(part) or "" for part in parts).casefold()
+    return hashlib.sha256(normalized.encode()).hexdigest()
+
+
+def _nominatim_url(
+    *, street: str, street_number: str | None, city: str, state: str, postal_code: str | None
+) -> str:
+    parameters = {
+        "street": " ".join(item for item in (street_number, street) if item),
+        "city": city,
+        "state": state,
+        "country": "Brasil",
+        "countrycodes": "br",
+        "format": "jsonv2",
+        "addressdetails": "1",
+        "limit": "1",
+    }
+    if postal_code:
+        parameters["postalcode"] = postal_code
+    return f"{NOMINATIM_SEARCH}?{urlencode(parameters)}"
+
+
+def _nominatim_location(payload: Any) -> tuple[str, str | None, str | None, float, float]:
+    if not isinstance(payload, list):
+        raise EnrichmentError("resposta Nominatim não é lista")
+    if not payload:
+        raise LookupError("endereço não encontrado")
+    result = payload[0]
+    if not isinstance(result, dict):
+        raise EnrichmentError("resultado Nominatim não é objeto")
+    raw_address = result.get("address")
+    address: dict[str, Any] = raw_address if isinstance(raw_address, dict) else {}
+    if str(address.get("country_code", "")).casefold() != "br":
+        raise EnrichmentError("resultado Nominatim fora do Brasil")
+    longitude = _coordinate(result.get("lon"), -180, 180)
+    latitude = _coordinate(result.get("lat"), -90, 90)
+    if longitude is None or latitude is None:
+        raise EnrichmentError("resultado Nominatim sem coordenadas")
+    result_type = text(result.get("addresstype") or result.get("type"))
+    normalized_type = (result_type or "").casefold()
+    if normalized_type in {"house", "building", "office", "commercial", "company", "shop"}:
+        accuracy = "address"
+    elif normalized_type in {"road", "residential", "pedestrian"}:
+        accuracy = "street"
+    elif normalized_type == "postcode":
+        accuracy = "postal_code"
+    else:
+        accuracy = "locality"
+    return accuracy, result_type, text(result.get("display_name")), longitude, latitude
+
+
+def geocode_company_addresses(
+    *,
+    cache_path: Path,
+    http: PublicClient,
+    limit: int,
+    max_age_days: int = 365,
+    interval: float = 1.1,
+) -> AddressGeocodingReport:
+    """Refina sedes por endereço, em série e com cache, usando Nominatim explicitamente."""
+    if limit < 1 or max_age_days < 0 or interval < 0:
+        raise EnrichmentError("limite, validade ou intervalo inválido")
+    if not cache_path.exists():
+        raise EnrichmentError(f"cache empresarial não encontrado: {cache_path}")
+    connection = duckdb.connect(str(cache_path))
+    schema = files("radar_publico").joinpath("migrations/004_enrichment.sql").read_text()
+    connection.execute(schema)
+    threshold = _now() - timedelta(days=max_age_days)
+    rows = connection.execute(
+        "SELECT cnpj, street, street_number, city, state, postal_code "
+        "FROM company_profile WHERE street IS NOT NULL AND city IS NOT NULL "
+        "AND state IS NOT NULL ORDER BY (upper(city) IN ('CUIABA', 'CUIABÁ')) DESC, cnpj"
+    ).fetchall()
+    candidates = [
+        (
+            str(row[0]),
+            str(row[1]),
+            text(row[2]),
+            str(row[3]),
+            str(row[4]),
+            text(row[5]),
+            _address_fingerprint(row[1:]),
+        )
+        for row in rows
+    ]
+    fresh = {
+        (str(row[0]), str(row[1]))
+        for row in connection.execute(
+            "SELECT cnpj, address_fingerprint FROM company_address_location WHERE fetched_at >= ?",
+            [threshold],
+        ).fetchall()
+    }
+    attempted = geocoded = not_found = failed = 0
+    try:
+        for cnpj, street, number, city, state, postal_code, fingerprint in candidates:
+            if (cnpj, fingerprint) in fresh:
+                continue
+            if attempted >= limit:
+                break
+            attempted += 1
+            request_url = _nominatim_url(
+                street=street,
+                street_number=number,
+                city=city,
+                state=state,
+                postal_code=postal_code,
+            )
+            try:
+                response = http.get(request_url)
+                accuracy, result_type, display_name, longitude, latitude = _nominatim_location(
+                    response.payload
+                )
+                connection.execute(
+                    "INSERT OR REPLACE INTO company_address_location VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    [
+                        cnpj,
+                        fingerprint,
+                        "nominatim-openstreetmap",
+                        accuracy,
+                        result_type,
+                        display_name,
+                        longitude,
+                        latitude,
+                        NOMINATIM_SEARCH,
+                        _now(),
+                    ],
+                )
+                connection.execute(
+                    "INSERT INTO address_geocoding_attempt VALUES (?, ?, 'succeeded', ?, NULL)",
+                    [cnpj, _now(), response.status],
+                )
+                geocoded += 1
+            except LookupError:
+                connection.execute(
+                    "INSERT OR REPLACE INTO company_address_location VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    [
+                        cnpj,
+                        fingerprint,
+                        "nominatim-openstreetmap",
+                        "not_found",
+                        None,
+                        None,
+                        None,
+                        None,
+                        NOMINATIM_SEARCH,
+                        _now(),
+                    ],
+                )
+                connection.execute(
+                    "INSERT INTO address_geocoding_attempt VALUES "
+                    "(?, ?, 'not_found', 200, 'no_result')",
+                    [cnpj, _now()],
+                )
+                not_found += 1
+            except (EnrichmentError, HttpError) as exc:
+                status_code = exc.status if isinstance(exc, HttpError) else None
+                reason = exc.category if isinstance(exc, HttpError) else str(exc)
+                connection.execute(
+                    "INSERT INTO address_geocoding_attempt VALUES (?, ?, 'failed', ?, ?)",
+                    [cnpj, _now(), status_code, reason[:100]],
+                )
+                failed += 1
+            if interval and attempted < limit:
+                time.sleep(interval)
+    finally:
+        connection.close()
+    return AddressGeocodingReport(
+        len(candidates), attempted, geocoded, not_found, failed, len(fresh)
     )

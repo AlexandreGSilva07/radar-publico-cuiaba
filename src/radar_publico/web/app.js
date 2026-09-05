@@ -29,7 +29,7 @@ const appState = {
 };
 
 const marketState = {
-  q: "", city: "", district: "", market_sector: "", company_size: "",
+  q: "", city: "", district: "", entity_kind: "", market_sector: "", company_size: "",
   registration_status: "", map_coordinate: "",
 };
 let marketMapLabel = "";
@@ -422,7 +422,7 @@ function marketFiltered(items, ignoredDimension = "") {
     if (query) {
       const haystack = normalized([
         item.supplier_name, item.legal_name, item.trade_name, item.cnpj,
-        item.primary_cnae, item.primary_cnae_description, item.market_sector,
+        item.primary_cnae, item.primary_cnae_description, item.market_sector, item.entity_kind,
         item.phone_primary, item.phone_secondary, item.email, item.city,
         item.district, item.postal_code,
       ].join(" "));
@@ -435,7 +435,7 @@ function marketFiltered(items, ignoredDimension = "") {
       const coordinate = `${Number(item.longitude).toFixed(5)},${Number(item.latitude).toFixed(5)}`;
       if (coordinate !== marketState.map_coordinate) return false;
     }
-    return ["city", "district", "market_sector", "company_size", "registration_status"].every(
+    return ["city", "district", "entity_kind", "market_sector", "company_size", "registration_status"].every(
       (dimension) => dimension === ignoredDimension || !marketState[dimension]
         || item[dimension] === marketState[dimension],
     );
@@ -519,9 +519,10 @@ function renderMarketMap(items) {
     const latitude = Number(item.latitude);
     const key = `${longitude.toFixed(5)},${latitude.toFixed(5)}`;
     const current = grouped.get(key) || {
-      key, longitude, latitude, companies: 0, paid: 0, districts: new Set(),
+      key, longitude, latitude, companies: 0, precise: 0, paid: 0, districts: new Set(),
     };
     current.companies += 1;
+    if (["address", "street"].includes(item.geocode_accuracy)) current.precise += 1;
     current.paid += Number(item.paid_value) || 0;
     if (item.district) current.districts.add(item.district);
     grouped.set(key, current);
@@ -533,10 +534,11 @@ function renderMarketMap(items) {
     const size = 15 + Math.sqrt(Math.max(0, cluster.paid) / maximum) * 19
       + Math.min(8, Math.sqrt(cluster.companies));
     const district = [...cluster.districts].slice(0, 2).join(" / ") || "CEP geocodificado";
-    const label = `${district} · ${integer.format(cluster.companies)} ${cluster.companies === 1 ? "empresa" : "empresas"} · ${money(cluster.paid)} pagos`;
-    return `<button class="map-marker${cluster.companies > 1 ? " cluster" : ""}" type="button" style="--x:${point.x / width * 100}%;--y:${point.y / height * 100}%;--size:${size}px;--z:${cluster.companies + 2}" data-market-coordinate="${html(cluster.key)}" data-market-label="${html(`${district} · ${integer.format(cluster.companies)} empresas`)}" aria-label="Filtrar por ${html(label)}" title="${html(label)}"><span>${cluster.companies > 1 ? integer.format(cluster.companies) : ""}</span></button>`;
+    const accuracy = cluster.precise ? "endereço/rua refinado" : "centroide do CEP";
+    const label = `${district} · ${integer.format(cluster.companies)} ${cluster.companies === 1 ? "empresa" : "empresas"} · ${accuracy} · ${money(cluster.paid)} pagos`;
+    return `<button class="map-marker${cluster.companies > 1 ? " cluster" : ""}${cluster.precise ? " precise" : ""}" type="button" style="--x:${point.x / width * 100}%;--y:${point.y / height * 100}%;--size:${size}px;--z:${cluster.companies + 2}" data-market-coordinate="${html(cluster.key)}" data-market-label="${html(`${district} · ${integer.format(cluster.companies)} empresas`)}" aria-label="Filtrar por ${html(label)}" title="${html(label)}"><span>${cluster.companies > 1 ? integer.format(cluster.companies) : ""}</span></button>`;
   }).join("");
-  element("#market-map").innerHTML = `<svg viewBox="0 0 ${width} ${height}" aria-hidden="true"><defs><pattern id="map-grid" width="54" height="54" patternUnits="userSpaceOnUse"><path d="M54 0H0V54" fill="none" stroke="currentColor" stroke-opacity=".08"/></pattern></defs><rect width="100%" height="100%" fill="url(#map-grid)"/><g class="map-inset"><rect class="map-inset-frame" x="${inset.x}" y="${inset.y}" width="${inset.width}" height="${inset.height}" rx="10"/><path class="map-inset-shape" d="${insetPath}"/><rect class="map-inset-viewport" x="${insetUrbanStart.x.toFixed(1)}" y="${insetUrbanStart.y.toFixed(1)}" width="${Math.max(3, insetUrbanEnd.x - insetUrbanStart.x).toFixed(1)}" height="${Math.max(3, insetUrbanEnd.y - insetUrbanStart.y).toFixed(1)}"/><text class="map-inset-label" x="${inset.x + 9}" y="${inset.y + inset.height + 17}">MUNICÍPIO</text></g><text x="44" y="520">CUIABÁ · ÁREA URBANA AMPLIADA</text></svg><span class="map-zoom-label">VISÃO URBANA</span>${markers}${located.length ? "" : '<div class="map-empty">Nenhuma sede geocodificada em Cuiabá neste recorte.</div>'}`;
+  element("#market-map").innerHTML = `<svg viewBox="0 0 ${width} ${height}" aria-hidden="true"><defs><pattern id="map-grid" width="54" height="54" patternUnits="userSpaceOnUse"><path d="M54 0H0V54" fill="none" stroke="currentColor" stroke-opacity=".08"/></pattern></defs><rect width="100%" height="100%" fill="url(#map-grid)"/><g class="map-inset"><rect class="map-inset-frame" x="${inset.x}" y="${inset.y}" width="${inset.width}" height="${inset.height}" rx="10"/><path class="map-inset-shape" d="${insetPath}"/><rect class="map-inset-viewport" x="${insetUrbanStart.x.toFixed(1)}" y="${insetUrbanStart.y.toFixed(1)}" width="${Math.max(3, insetUrbanEnd.x - insetUrbanStart.x).toFixed(1)}" height="${Math.max(3, insetUrbanEnd.y - insetUrbanStart.y).toFixed(1)}"/><text class="map-inset-label" x="${inset.x + 9}" y="${inset.y + inset.height + 17}">MUNICÍPIO</text></g><text x="44" y="520">CUIABÁ · ÁREA URBANA AMPLIADA</text></svg><span class="map-zoom-label">VISÃO URBANA</span><span class="map-legend"><i></i> Endereço/rua <i class="approximate"></i> CEP</span>${markers}${located.length ? "" : '<div class="map-empty">Nenhuma sede geocodificada em Cuiabá neste recorte.</div>'}`;
   element("#market-map-count").textContent = `${integer.format(located.length)} sedes · ${integer.format(clusters.length)} pontos`;
 }
 
@@ -558,7 +560,7 @@ function renderMarketTable(items) {
 
 function renderMarketActiveFilters() {
   const labels = {
-    q: "Busca", city: "Cidade", district: "Bairro", market_sector: "Nicho",
+    q: "Busca", city: "Cidade", district: "Bairro", entity_kind: "Tipo", market_sector: "Nicho",
     company_size: "Porte", registration_status: "Situação", map_coordinate: "Mapa",
   };
   const active = Object.entries(marketState).filter(([, value]) => value);
@@ -571,11 +573,15 @@ function renderMarket(payload) {
   const items = marketFiltered(payload.items);
   const phoneCount = items.filter((item) => item.phone_primary).length;
   const locationCount = items.filter((item) => item.longitude !== null && item.latitude !== null).length;
+  const preciseLocationCount = items.filter(
+    (item) => ["address", "street"].includes(item.geocode_accuracy),
+  ).length;
   const paid = items.reduce((sum, item) => sum + Number(item.paid_value || 0), 0);
   element("#suppliers-coverage").textContent = `${integer.format(payload.coverage.enriched_count)} de ${integer.format(payload.coverage.supplier_count)} enriquecidas`;
   element("#market-company-count").textContent = integer.format(items.length);
   element("#market-phone-count").textContent = integer.format(phoneCount);
   element("#market-location-count").textContent = integer.format(locationCount);
+  element("#market-location-detail").textContent = `${integer.format(preciseLocationCount)} por endereço/rua · demais por CEP`;
   element("#market-paid-value").textContent = money(paid, true);
   renderMarketDimension("#market-sector-chart", payload.items, "market_sector");
   renderMarketDimension("#market-city-chart", payload.items, "city");
@@ -590,6 +596,7 @@ function populateMarketFilters(items) {
   const dimensions = {
     "#market-city": ["city", "Todas"],
     "#market-district": ["district", "Todos"],
+    "#market-kind": ["entity_kind", "Todos"],
     "#market-sector": ["market_sector", "Todos"],
     "#market-size": ["company_size", "Todos"],
     "#market-status": ["registration_status", "Todas"],
@@ -955,6 +962,7 @@ document.querySelectorAll(".filter-bar input").forEach((input) => input.addEvent
 const marketSelectDimensions = {
   "market-city": "city",
   "market-district": "district",
+  "market-kind": "entity_kind",
   "market-sector": "market_sector",
   "market-size": "company_size",
   "market-status": "registration_status",

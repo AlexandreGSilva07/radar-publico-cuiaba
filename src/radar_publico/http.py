@@ -45,7 +45,13 @@ class PublicClient:
         self.client = client or httpx.Client(
             timeout=timeout,
             follow_redirects=False,
-            headers={"Accept": "application/json", "User-Agent": "radar-publico-cuiaba/0.1"},
+            headers={
+                "Accept": "application/json",
+                "User-Agent": (
+                    "radar-publico-cuiaba/0.1 "
+                    "(+https://github.com/AlexandreGSilva07/radar-publico-cuiaba)"
+                ),
+            },
         )
         self.owns_client = client is None
 

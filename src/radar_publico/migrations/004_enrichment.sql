@@ -67,3 +67,24 @@ CREATE TABLE IF NOT EXISTS geocoding_attempt(
   http_status INTEGER,
   reason VARCHAR
 );
+
+CREATE TABLE IF NOT EXISTS company_address_location(
+  cnpj VARCHAR PRIMARY KEY,
+  address_fingerprint VARCHAR NOT NULL,
+  provider VARCHAR NOT NULL,
+  accuracy VARCHAR NOT NULL,
+  result_type VARCHAR,
+  display_name VARCHAR,
+  longitude DOUBLE,
+  latitude DOUBLE,
+  source_url VARCHAR NOT NULL,
+  fetched_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS address_geocoding_attempt(
+  cnpj VARCHAR NOT NULL,
+  attempted_at TIMESTAMP NOT NULL,
+  status VARCHAR NOT NULL,
+  http_status INTEGER,
+  reason VARCHAR
+);

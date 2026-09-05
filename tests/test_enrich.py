@@ -9,7 +9,9 @@ import respx
 from radar_publico.enrich import (
     BRASIL_API_CEP,
     BRASIL_API_CNPJ,
+    NOMINATIM_SEARCH,
     enrich_companies,
+    geocode_company_addresses,
     geocode_company_postal_codes,
 )
 from radar_publico.http import PublicClient
@@ -117,9 +119,7 @@ def test_geocodes_cached_company_postal_codes(tmp_path: Path) -> None:
     )
 
     with PublicClient(backoff=0) as http:
-        report = geocode_company_postal_codes(
-            cache_path=cache, http=http, limit=10, interval=0
-        )
+        report = geocode_company_postal_codes(cache_path=cache, http=http, limit=10, interval=0)
 
     assert report.geocoded == 1
     assert route.call_count == 1
@@ -154,3 +154,50 @@ def test_cli_or_function_cache_avoids_second_request(tmp_path: Path) -> None:
             )
         assert route.call_count == 1
         assert second.attempted == 0
+
+
+@respx.mock
+def test_refines_company_address_with_cached_nominatim_result(tmp_path: Path) -> None:
+    cache = tmp_path / "enrichment.duckdb"
+    connection = duckdb.connect(str(cache))
+    connection.execute(
+        "CREATE TABLE company_profile(cnpj VARCHAR, street VARCHAR, street_number VARCHAR, "
+        "city VARCHAR, state VARCHAR, postal_code VARCHAR)"
+    )
+    connection.execute(
+        "INSERT INTO company_profile VALUES "
+        "('00000000000191', 'RUA SAO BENEDITO', '645', 'CUIABA', 'MT', '78008405')"
+    )
+    connection.close()
+    route = respx.get(url__startswith=NOMINATIM_SEARCH).mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {
+                    "lat": "-15.5962153",
+                    "lon": "-56.0889080",
+                    "display_name": "Rua São Benedito, Lixeira, Cuiabá, Brasil",
+                    "type": "residential",
+                    "addresstype": "road",
+                    "address": {"city": "Cuiabá", "country_code": "br"},
+                }
+            ],
+        )
+    )
+
+    with PublicClient(backoff=0) as http:
+        report = geocode_company_addresses(cache_path=cache, http=http, limit=1, interval=0)
+        cached = geocode_company_addresses(cache_path=cache, http=http, limit=1, interval=0)
+
+    assert report.geocoded == 1
+    assert cached.attempted == 0
+    assert route.call_count == 1
+    request = route.calls[0].request
+    assert request.url.params["countrycodes"] == "br"
+    assert request.url.params["limit"] == "1"
+    assert request.url.params["street"] == "645 RUA SAO BENEDITO"
+    connection = duckdb.connect(str(cache), read_only=True)
+    assert connection.execute(
+        "SELECT provider, accuracy, longitude, latitude FROM company_address_location"
+    ).fetchone() == ("nominatim-openstreetmap", "street", -56.088908, -15.5962153)
+    connection.close()

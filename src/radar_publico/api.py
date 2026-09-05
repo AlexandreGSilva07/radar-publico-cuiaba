@@ -53,6 +53,33 @@ def _market_sector(cnae: object) -> str:
         "Não classificado",
     )
 
+
+def _entity_kind(legal_nature: object, primary_cnae: object) -> str:
+    nature = normalize_search_text(str(legal_nature or "")).upper()
+    cnae = "".join(character for character in str(primary_cnae or "") if character.isdigit())
+    public_markers = (
+        "ADMINISTRACAO PUBLICA",
+        "AUTARQUIA",
+        "FUNDO PUBLICO",
+        "EMPRESA PUBLICA",
+        "SOCIEDADE DE ECONOMIA MISTA",
+        "ORGAO PUBLICO",
+        "MUNICIPIO",
+    )
+    nonprofit_markers = (
+        "ASSOCIACAO PRIVADA",
+        "FUNDACAO PRIVADA",
+        "ORGANIZACAO RELIGIOSA",
+        "SINDICATO",
+        "SERVICO SOCIAL AUTONOMO",
+    )
+    if cnae.startswith("84") or any(marker in nature for marker in public_markers):
+        return "Setor público"
+    if any(marker in nature for marker in nonprofit_markers):
+        return "Terceiro setor"
+    return "Empresa privada"
+
+
 EXPORTS = {
     "opportunities": (
         "SELECT procurement_id, number, year, object_text, agency, modality, status, "
@@ -208,9 +235,16 @@ class AnalyticsDatabase:
                 "p.phone_primary, p.phone_secondary, p.email, p.tax_regime, "
                 "p.tax_regime_year, p.municipality_ibge, p.simples, p.mei, "
                 "p.source_url AS profile_source_url, p.fetched_at AS profile_fetched_at, "
-                "l.longitude, l.latitude, l.provider AS geocode_provider, "
-                "l.source_url AS geocode_source_url "
+                "coalesce(a.longitude, l.longitude) AS longitude, "
+                "coalesce(a.latitude, l.latitude) AS latitude, "
+                "CASE WHEN a.longitude IS NOT NULL THEN a.provider ELSE l.provider END "
+                "AS geocode_provider, "
+                "CASE WHEN a.longitude IS NOT NULL THEN a.accuracy "
+                "WHEN l.longitude IS NOT NULL THEN 'postal_code' END AS geocode_accuracy, "
+                "CASE WHEN a.longitude IS NOT NULL THEN a.source_url ELSE l.source_url END "
+                "AS geocode_source_url, a.display_name AS geocode_display_name "
                 "FROM company_profile p LEFT JOIN company_location l USING (postal_code) "
+                "LEFT JOIN company_address_location a USING (cnpj) "
                 f"WHERE p.cnpj IN ({placeholders})",
                 cnpjs,
             )
@@ -231,6 +265,10 @@ class AnalyticsDatabase:
                 **item,
                 **profiles[str(item["cnpj"])],
                 "market_sector": _market_sector(profiles[str(item["cnpj"])]["primary_cnae"]),
+                "entity_kind": _entity_kind(
+                    profiles[str(item["cnpj"])]["legal_nature"],
+                    profiles[str(item["cnpj"])]["primary_cnae"],
+                ),
             }
             for item in metrics
             if str(item["cnpj"]) in profiles
@@ -577,15 +615,21 @@ def create_app(
                 "supplier_count": supplier_count,
                 "enriched_count": len(items),
                 "located_count": sum(
-                    item["longitude"] is not None and item["latitude"] is not None
-                    for item in items
+                    item["longitude"] is not None and item["latitude"] is not None for item in items
                 ),
                 "phone_count": sum(bool(item["phone_primary"]) for item in items),
+                "precise_location_count": sum(
+                    item["geocode_accuracy"] in {"address", "street"} for item in items
+                ),
             },
             "items": items,
             "sources": [
                 {"name": "Portal da Transparência de Cuiabá", "url": PORTAL_URL},
                 {"name": "BrasilAPI — CNPJ e CEP v2", "url": "https://brasilapi.com.br/docs"},
+                {
+                    "name": "OpenStreetMap — Nominatim",
+                    "url": "https://www.openstreetmap.org/copyright",
+                },
             ],
         }
 
@@ -622,13 +666,42 @@ def create_app(
                     status_code=503, detail="enrichment database unavailable"
                 ) from exc
             fields = (
-                "cnpj", "supplier_name", "legal_name", "trade_name", "registration_status",
-                "company_size", "legal_nature", "market_sector", "primary_cnae",
-                "primary_cnae_description", "tax_regime", "tax_regime_year", "simples", "mei",
-                "phone_primary", "phone_secondary", "email", "street", "street_number",
-                "district", "postal_code", "city", "state", "longitude", "latitude",
-                "contract_count", "contract_value", "expense_records", "committed_value",
-                "paid_value", "profile_source_url", "geocode_source_url",
+                "cnpj",
+                "supplier_name",
+                "legal_name",
+                "trade_name",
+                "registration_status",
+                "company_size",
+                "entity_kind",
+                "legal_nature",
+                "market_sector",
+                "primary_cnae",
+                "primary_cnae_description",
+                "tax_regime",
+                "tax_regime_year",
+                "simples",
+                "mei",
+                "phone_primary",
+                "phone_secondary",
+                "email",
+                "street",
+                "street_number",
+                "district",
+                "postal_code",
+                "city",
+                "state",
+                "longitude",
+                "latitude",
+                "contract_count",
+                "contract_value",
+                "expense_records",
+                "committed_value",
+                "paid_value",
+                "geocode_provider",
+                "geocode_accuracy",
+                "geocode_display_name",
+                "profile_source_url",
+                "geocode_source_url",
             )
             rows = [{field: company.get(field) for field in fields} for company in companies]
             return _csv_response(dataset, rows)

@@ -13,6 +13,7 @@ from radar_publico.coverage import reports, require_valid
 from radar_publico.enrich import (
     EnrichmentError,
     enrich_companies,
+    geocode_company_addresses,
     geocode_company_postal_codes,
 )
 from radar_publico.http import HttpError, PublicClient
@@ -220,6 +221,34 @@ def serve_command(
 ) -> None:
     """Inicia a API e o dashboard local."""
     run_api(host=host, port=port, reload=reload)
+
+
+@app.command("geocode-addresses")
+def geocode_addresses_command(
+    live: bool = typer.Option(False, help="Autoriza consultas em série ao Nominatim."),
+    limit: int = typer.Option(25, min=1, help="Máximo de endereços nesta execução."),
+    max_age_days: int = typer.Option(365, min=0, help="Validade do resultado em cache."),
+    cache_path: Path = typer.Option(Path("data/enrichment.duckdb")),
+) -> None:
+    """Refina coordenadas por endereço, respeitando a política pública do OpenStreetMap."""
+    if not live:
+        typer.echo("Geocodificação de endereços bloqueada; use --live.", err=True)
+        raise typer.Exit(2)
+    try:
+        with PublicClient() as http:
+            report = geocode_company_addresses(
+                cache_path=cache_path,
+                http=http,
+                limit=limit,
+            )
+    except EnrichmentError as exc:
+        typer.echo(f"Geocodificação de endereços falhou: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(
+        f"Geocodificação de endereços concluída: candidates={report.candidates} "
+        f"attempted={report.attempted} geocoded={report.geocoded} "
+        f"not_found={report.not_found} failed={report.failed} cached={report.cached}"
+    )
 
 
 @app.command("refresh")

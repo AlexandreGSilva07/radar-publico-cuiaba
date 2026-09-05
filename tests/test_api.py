@@ -76,6 +76,11 @@ def _enrichment(path: Path) -> None:
           -56.0979, -15.6014, 'https://brasilapi.com.br/api/cep/v2/78000001',
           current_timestamp
         );
+        INSERT INTO company_address_location VALUES (
+          '00000000000191', 'fingerprint', 'nominatim-openstreetmap', 'street',
+          'residential', 'Rua Teste, Cuiabá, Brasil', -56.0889, -15.5962,
+          'https://nominatim.openstreetmap.org/search', current_timestamp
+        );
         """
     )
     connection.close()
@@ -184,15 +189,18 @@ def test_market_intelligence_connects_company_metrics_profile_and_location(
         "enriched_count": 1,
         "located_count": 1,
         "phone_count": 1,
+        "precise_location_count": 1,
     }
     company = payload["items"][0]
     assert company["supplier_name"] == "Empresa Ágil"
     assert company["primary_cnae"] == "6201501"
     assert company["market_sector"] == "Informação e comunicação"
+    assert company["entity_kind"] == "Empresa privada"
     assert company["phone_primary"] == "65999999999"
     assert company["tax_regime"] == "LUCRO PRESUMIDO"
-    assert company["longitude"] == -56.0979
-    assert company["latitude"] == -15.6014
+    assert company["longitude"] == -56.0889
+    assert company["latitude"] == -15.5962
+    assert company["geocode_accuracy"] == "street"
     assert "qsa" not in company
     assert payload["sources"][0]["name"] == "Portal da Transparência de Cuiabá"
 
@@ -200,7 +208,7 @@ def test_market_intelligence_connects_company_metrics_profile_and_location(
     assert export.status_code == 200
     assert "65999999999" in export.text
     assert "LUCRO PRESUMIDO" in export.text
-    assert "-56.0979" in export.text
+    assert "-56.0889" in export.text
     assert "qsa" not in export.text
 
 
