@@ -318,8 +318,10 @@ def build_analytics(
             rejected[snapshot.resource] = failures
         connection.executemany(
             "INSERT INTO analytics_metadata VALUES (?,?)",
-            [("schema_version", "2"), ("source_year", str(year)), ("built_at", _now())],
+            [("schema_version", "3"), ("source_year", str(year)), ("built_at", _now())],
         )
+        gold = files("radar_publico").joinpath("migrations/003_gold.sql").read_text()
+        connection.execute(gold)
         connection.execute("CHECKPOINT")
         connection.close()
         connection = None
