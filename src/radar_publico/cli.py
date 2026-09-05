@@ -1,10 +1,13 @@
 """Linha de comando do Radar Público Cuiabá."""
 
 from pathlib import Path
+from uuid import uuid4
 
 import typer
 
 from radar_publico import __version__
+from radar_publico.collect import CollectionError, collect
+from radar_publico.http import HttpError, PublicClient
 from radar_publico.sources import ManifestError, load_manifest
 from radar_publico.state import State
 
@@ -40,6 +43,58 @@ def init_state(path: Path = typer.Option(Path("data/ops.duckdb"))) -> None:
     with State(path):
         pass
     typer.echo(f"Estado pronto: {path}")
+
+
+@app.command("smoke")
+def smoke(
+    resource: str = typer.Option(...),
+    live: bool = typer.Option(False, help="Autoriza uma consulta externa."),
+) -> None:
+    """Consulta somente o catálogo de filtros."""
+    if not live:
+        typer.echo("Rede bloqueada; use --live.")
+        return
+    manifest = load_manifest()
+    with PublicClient() as http:
+        response = http.get(manifest.url(resource, "filter"))
+    typer.echo(f"Smoke OK: resource={resource} fields={len(response.payload)}")
+
+
+@app.command("collect")
+def collect_command(
+    resource: str = typer.Option(...),
+    year: int = typer.Option(...),
+    live: bool = typer.Option(False, help="Autoriza rede e Bronze local."),
+    max_pages: int | None = typer.Option(None, min=1),
+    cycle_id: str | None = typer.Option(None),
+    state_path: Path = typer.Option(Path("data/ops.duckdb")),
+    bronze_path: Path = typer.Option(Path("data/bronze")),
+) -> None:
+    """Coleta um recurso/ano explicitamente autorizado."""
+    if not live:
+        typer.echo("Coleta bloqueada; use --live.", err=True)
+        raise typer.Exit(2)
+    try:
+        manifest = load_manifest()
+        with State(state_path) as state, PublicClient() as http:
+            report = collect(
+                manifest=manifest,
+                resource_name=resource,
+                year=year,
+                state=state,
+                http=http,
+                bronze_root=bronze_path,
+                cycle_id=cycle_id or str(uuid4()),
+                max_pages=max_pages,
+            )
+    except (CollectionError, HttpError, ManifestError) as exc:
+        typer.echo(f"Coleta falhou: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(
+        f"run={report.run_id} cycle={report.cycle_id} status={report.status} "
+        f"pages={report.collected_pages}/{report.expected_pages} "
+        f"records={report.collected_records}/{report.expected_records}"
+    )
 
 
 if __name__ == "__main__":
