@@ -291,8 +291,14 @@ class AnalyticsDatabase:
             result = connection.execute(
                 "SELECT d.source_url, d.directory_kind, d.slug, d.agency_name, d.address, "
                 "d.address_scope, d.postal_code, d.phones_json, d.emails_json, d.fetched_at, "
-                "l.longitude, l.latitude, l.provider AS geocode_provider, "
-                "l.source_url AS geocode_source_url FROM agency_directory d "
+                "coalesce(d.longitude, l.longitude) AS longitude, "
+                "coalesce(d.latitude, l.latitude) AS latitude, "
+                "CASE WHEN d.longitude IS NOT NULL THEN 'official-directory' "
+                "ELSE l.provider END AS geocode_provider, "
+                "CASE WHEN d.longitude IS NOT NULL THEN 'official_point' "
+                "WHEN l.longitude IS NOT NULL THEN 'postal_code' END AS geocode_accuracy, "
+                "coalesce(d.location_url, l.source_url) AS geocode_source_url "
+                "FROM agency_directory d "
                 "LEFT JOIN company_location l USING (postal_code) ORDER BY d.agency_name"
             )
             columns = [item[0] for item in result.description]
@@ -758,6 +764,8 @@ def create_app(
                 "emails",
                 "longitude",
                 "latitude",
+                "geocode_provider",
+                "geocode_accuracy",
                 "source_url",
                 "geocode_source_url",
             )

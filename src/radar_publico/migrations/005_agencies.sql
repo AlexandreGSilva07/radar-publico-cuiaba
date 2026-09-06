@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS agency_directory(
 );
 
 ALTER TABLE agency_directory ADD COLUMN IF NOT EXISTS address_scope VARCHAR;
+ALTER TABLE agency_directory ADD COLUMN IF NOT EXISTS location_url VARCHAR;
+ALTER TABLE agency_directory ADD COLUMN IF NOT EXISTS longitude DOUBLE;
+ALTER TABLE agency_directory ADD COLUMN IF NOT EXISTS latitude DOUBLE;
 
 CREATE TABLE IF NOT EXISTS agency_directory_attempt(
   source_url VARCHAR NOT NULL,

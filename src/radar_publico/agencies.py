@@ -133,6 +133,9 @@ class _AgencyDetailParser(HTMLParser):
         self.scoped_phones: list[str] = []
         self.all_emails: list[str] = []
         self.scoped_emails: list[str] = []
+        self.location_url: str | None = None
+        self.longitude: float | None = None
+        self.latitude: float | None = None
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attributes = dict(attrs)
@@ -147,6 +150,16 @@ class _AgencyDetailParser(HTMLParser):
             self.address_parts = []
         if tag == "a":
             href = attributes.get("href") or ""
+            location = re.search(
+                r"google\.com/maps/(?:place|search)/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)",
+                href,
+            )
+            if self.contact_scope_depth is not None and location:
+                latitude, longitude = map(float, location.groups())
+                if -90 <= latitude <= 90 and -180 <= longitude <= 180:
+                    self.location_url = href
+                    self.longitude = longitude
+                    self.latitude = latitude
             if href.startswith("tel:"):
                 self.link_kind = "phone"
                 self.link_value = href[4:]
@@ -232,7 +245,16 @@ def parse_directory_index(html: str, kind: str, path_prefix: str) -> list[Agency
 
 def parse_agency_detail(
     html: str,
-) -> tuple[str | None, str | None, list[str], list[str], str]:
+) -> tuple[
+    str | None,
+    str | None,
+    list[str],
+    list[str],
+    str,
+    str | None,
+    float | None,
+    float | None,
+]:
     parser = _AgencyDetailParser()
     parser.feed(html)
     address = parser.address
@@ -243,7 +265,16 @@ def parse_agency_detail(
     )
     match = re.search(r"\b(\d{5})[-.\s]?(\d{3})\b", address or "")
     postal_code = "".join(match.groups()) if match else None
-    return address, postal_code, parser.phones, parser.emails, address_scope
+    return (
+        address,
+        postal_code,
+        parser.phones,
+        parser.emails,
+        address_scope,
+        parser.location_url,
+        parser.longitude,
+        parser.latitude,
+    )
 
 
 def _now() -> datetime:
@@ -303,10 +334,19 @@ def enrich_agency_directory(
             try:
                 response = http.get_text(candidate.source_url)
                 body = response.content.decode("utf-8", errors="replace")
-                address, postal_code, phones, emails, address_scope = parse_agency_detail(body)
+                (
+                    address,
+                    postal_code,
+                    phones,
+                    emails,
+                    address_scope,
+                    location_url,
+                    longitude,
+                    latitude,
+                ) = parse_agency_detail(body)
                 slug = urlparse(candidate.source_url).path.rstrip("/").rsplit("/", 1)[-1]
                 connection.execute(
-                    "INSERT OR REPLACE INTO agency_directory VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT OR REPLACE INTO agency_directory VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     [
                         candidate.source_url,
                         candidate.kind,
@@ -319,6 +359,9 @@ def enrich_agency_directory(
                         hashlib.sha256(response.content).hexdigest(),
                         _now(),
                         address_scope,
+                        location_url,
+                        longitude,
+                        latitude,
                     ],
                 )
                 connection.execute(

@@ -37,7 +37,9 @@ def test_collects_official_agency_address_and_contacts(tmp_path: Path) -> None:
       <div class="component-sidebar">
         <a href="tel:65332459035904" class="phone">Recepção (65) 3324-5903/5904</a>
         <a href="mailto:governo@cuiaba.mt.gov.br" class="email">E-mail</a>
-        <address>Praça Alencastro, 158, Centro, Cuiabá-MT - 78005-360</address>
+        <a href="http://www.google.com/maps/place/-15.5974956,-56.0959633" class="location">
+          <address>Praça Alencastro, 158, Centro, Cuiabá-MT - 78005-360</address>
+        </a>
       </div>
       <footer>
         <a href="tel:6533245611">Telefone geral</a>
@@ -69,7 +71,8 @@ def test_collects_official_agency_address_and_contacts(tmp_path: Path) -> None:
     assert report.saved == 3
     connection = duckdb.connect(str(cache), read_only=True)
     assert connection.execute(
-        "SELECT agency_name, postal_code, phones_json, emails_json, address_scope "
+        "SELECT agency_name, postal_code, phones_json, emails_json, address_scope, "
+        "longitude, latitude "
         "FROM agency_directory "
         "WHERE slug='governo'"
     ).fetchone() == (
@@ -78,6 +81,8 @@ def test_collects_official_agency_address_and_contacts(tmp_path: Path) -> None:
         '["6533245903","6533245904"]',
         '["governo@cuiaba.mt.gov.br"]',
         "unit",
+        -56.0959633,
+        -15.5974956,
     )
     connection.close()
 

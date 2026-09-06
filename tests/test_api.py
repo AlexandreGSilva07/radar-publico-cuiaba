@@ -82,7 +82,10 @@ def _enrichment(path: Path) -> None:
           'residential', 'Rua Teste, Cuiabá, Brasil', -56.0889, -15.5962,
           'https://nominatim.openstreetmap.org/search', current_timestamp
         );
-        INSERT INTO agency_directory VALUES (
+        INSERT INTO agency_directory(
+          source_url, directory_kind, slug, agency_name, address, postal_code,
+          phones_json, emails_json, source_hash, fetched_at, address_scope
+        ) VALUES (
           'https://www.cuiaba.mt.gov.br/secretarias/teste', 'secretaria', 'teste',
           'Secretaria Teste', 'Rua Teste, 10, Cuiabá-MT - 78000-001', '78000001',
           '["6533334444"]', '["orgao@cuiaba.mt.gov.br"]', 'hash', current_timestamp, 'unit'
