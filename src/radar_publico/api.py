@@ -741,7 +741,7 @@ def create_app(
                 raise HTTPException(
                     status_code=503, detail="agency intelligence unavailable"
                 ) from exc
-            fields = (
+            agency_fields = (
                 "agency",
                 "procurement_count",
                 "open_procurements",
@@ -772,7 +772,7 @@ def create_app(
                         "phones": " | ".join(location.get("phones", [])),
                         "emails": " | ".join(location.get("emails", [])),
                     }
-                    rows.append({field: row.get(field) for field in fields})
+                    rows.append({field: row.get(field) for field in agency_fields})
             return _csv_response(dataset, rows)
         if dataset == "market-intelligence":
             try:

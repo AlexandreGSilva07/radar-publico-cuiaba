@@ -195,7 +195,8 @@ class _AgencyDetailParser(HTMLParser):
     def address(self) -> str | None:
         scoped = [value for value, in_scope in self.addresses if in_scope]
         fallback = [value for value, _ in self.addresses]
-        return (scoped or fallback or [None])[0]
+        values = scoped or fallback
+        return values[0] if values else None
 
     @property
     def phones(self) -> list[str]:
