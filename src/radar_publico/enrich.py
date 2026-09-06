@@ -336,10 +336,13 @@ def geocode_company_postal_codes(
     candidates = [
         str(row[0])
         for row in connection.execute(
-            "SELECT DISTINCT postal_code FROM ("
-            "SELECT postal_code FROM company_profile WHERE postal_code IS NOT NULL UNION ALL "
-            "SELECT postal_code FROM agency_directory WHERE postal_code IS NOT NULL"
-            ") ORDER BY postal_code"
+            "SELECT postal_code FROM ("
+            "SELECT postal_code, CASE WHEN upper(city) IN ('CUIABA', 'CUIABÁ') "
+            "THEN 1 ELSE 2 END AS priority FROM company_profile "
+            "WHERE postal_code IS NOT NULL UNION ALL "
+            "SELECT postal_code, 0 AS priority FROM agency_directory "
+            "WHERE postal_code IS NOT NULL"
+            ") GROUP BY postal_code ORDER BY min(priority), postal_code"
         ).fetchall()
     ]
     fresh = {

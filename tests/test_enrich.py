@@ -130,6 +130,46 @@ def test_geocodes_cached_company_postal_codes(tmp_path: Path) -> None:
     connection.close()
 
 
+@respx.mock
+def test_geocoding_prioritizes_official_agency_postal_codes(tmp_path: Path) -> None:
+    cache = tmp_path / "enrichment.duckdb"
+    connection = duckdb.connect(str(cache))
+    connection.execute(
+        "CREATE TABLE company_profile(cnpj VARCHAR, postal_code VARCHAR, city VARCHAR)"
+    )
+    connection.execute(
+        "INSERT INTO company_profile VALUES ('00000000000191', '99999999', 'OUTRA CIDADE')"
+    )
+    connection.execute(
+        "CREATE TABLE agency_directory(source_url VARCHAR PRIMARY KEY, directory_kind VARCHAR, "
+        "slug VARCHAR, agency_name VARCHAR, address VARCHAR, postal_code VARCHAR, "
+        "phones_json VARCHAR, emails_json VARCHAR, source_hash VARCHAR, fetched_at TIMESTAMP, "
+        "address_scope VARCHAR)"
+    )
+    connection.execute(
+        "INSERT INTO agency_directory VALUES ('https://example.test/orgao', 'orgao', 'orgao', "
+        "'Órgão', 'Rua Teste', '78000002', '[]', '[]', 'hash', current_timestamp, 'unit')"
+    )
+    connection.close()
+    agency_route = respx.get(f"{BRASIL_API_CEP}/78000002").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "cep": "78000002",
+                "state": "MT",
+                "city": "Cuiabá",
+                "location": {"coordinates": {"longitude": "-56.09", "latitude": "-15.60"}},
+            },
+        )
+    )
+
+    with PublicClient(backoff=0) as http:
+        report = geocode_company_postal_codes(cache_path=cache, http=http, limit=1, interval=0)
+
+    assert report.geocoded == 1
+    assert agency_route.call_count == 1
+
+
 def test_cli_or_function_cache_avoids_second_request(tmp_path: Path) -> None:
     analytics = tmp_path / "analytics.duckdb"
     connection = duckdb.connect(str(analytics))
