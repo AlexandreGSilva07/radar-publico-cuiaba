@@ -44,12 +44,10 @@ Para uma categoria e empresa selecionadas, o usuário consegue:
 |---|---|---|
 | Licitações | processo, edital, órgão, objeto, modalidade, valor estimado, data e situação | oportunidades e concorrência |
 | Contratos | número, órgão, fornecedor, objeto, modalidade, vigência, valores e situação | radar de renovação e incumbente |
-| Atas e adesões | identificação, órgão, fornecedor, itens, vigência e situação | compras recorrentes e oportunidades derivadas |
 | Execução financeira | credor, empenho, liquidação, pagamento, órgão, descrição, valores e datas | gasto efetivo e histórico comercial |
 | Cadastro de fornecedores | CNPJ, nome, CNAE, porte, situação cadastral, endereço, matriz/filial | filtros e perfil de empresa |
+| Diretório institucional | unidade, endereço, telefone, e-mail e fonte oficial | mapa e contato do órgão comprador |
 | Controle social de pessoas físicas | nome publicado, CPF irreversivelmente mascarado e totais financeiros | transparência separada da análise empresarial |
-| PNCP | contratações e contratos públicos nacionais relacionados a fornecedor/órgão quando disponíveis | perfil competitivo além de Cuiabá |
-| Sanções públicas | ocorrência oficial, origem, vigência e data da consulta | alerta contextual, sem juízo editorial |
 
 ### 3.2 Explicitamente fora do MVP
 
@@ -60,6 +58,7 @@ Para uma categoria e empresa selecionadas, o usuário consegue:
 - consulta automatizada a serviços protegidos por CAPTCHA;
 - inferência ou exibição de sócios pessoas físicas;
 - motor de recomendação por IA generativa;
+- atas, adesões, PNCP e sanções, preservados como extensões priorizáveis após validação comercial;
 - cobertura de outros municípios, exceto PNCP como enriquecimento de fornecedor;
 - aplicativo móvel nativo, alertas por WhatsApp e integrações de CRM.
 
@@ -154,15 +153,21 @@ Campos desejados para `empresa` e `estabelecimento`:
 - data de abertura;
 - fonte e data de atualização.
 
-### 6.3 PNCP
+### 6.3 Diretório oficial de órgãos
+
+Coletar as páginas públicas de secretarias e órgãos em `www.cuiaba.mt.gov.br`, seguindo toda a paginação. Persistir somente nome da unidade, natureza do diretório, endereço, CEP, telefones/e-mails institucionais, URL, hash e data da consulta. O parser deve limitar contatos ao bloco da unidade para não confundir o rodapé geral da Prefeitura com o órgão; endereços gerais devem receber `address_scope=municipal_headquarters`.
+
+O vínculo com o comprador analítico aceita apenas igualdade após normalização canônica ou alias manual versionado. Correspondência textual aproximada não alimenta indicadores.
+
+### 6.4 PNCP
 
 Usar como enriquecimento nacional de compras públicas, inicialmente apenas para CNPJs já identificados como fornecedores ou para CNPJs de órgãos compradores relevantes. Não deve bloquear a entrega do MVP local.
 
-### 6.4 Sanções da CGU
+### 6.5 Sanções da CGU
 
 Consultar ou importar os conjuntos públicos CEIS/CNEP/CEPIM compatíveis com uso público. O dashboard apresentará somente dados oficiais vigentes ou históricos com período claramente exibido.
 
-### 6.5 IBGE
+### 6.6 IBGE
 
 Usar dados municipais agregados para contexto territorial posterior: município, população, PIB e atividade econômica. Não é fonte de oportunidade individual e não deve atrasar o núcleo do MVP.
 
@@ -181,6 +186,7 @@ silver: tabelas normalizadas, tipadas e deduplicadas
       ↓
 gold: métricas, alertas, busca e views para o dashboard
       ↘ cache empresarial: perfil CNPJ + CEP + endereço geocodificado
+      ↘ cache institucional: diretório oficial + contato + CEP
       ↓
 API/dashboard
 ```
@@ -359,6 +365,8 @@ Gerar um perfil consolidado:
 - status cadastral e alertas de sanção quando houver correspondência exata.
 
 Geografia usa duas camadas: BrasilAPI CEP v2 como fallback aproximado e Nominatim como refinamento opcional por endereço. O dashboard deve declarar a precisão de cada ponto e preferir `address`/`street` a `postal_code`. A API pública do Nominatim não entra em rotina diária: somente lote pequeno, explícito, serial e cacheado; operação comercial recorrente exige instância própria ou provedor compatível.
+
+O diretório institucional é atualizado antes da geocodificação. CEPs de órgãos têm prioridade na fila e o mapa distingue endereço próprio da unidade de referência geral da Prefeitura. Contatos pessoais de gestores não são coletados.
 
 ### 9.6 Fase F — Gold e métricas
 
@@ -675,12 +683,14 @@ Status em 5 de setembro de 2026: núcleo funcional e inteligência empresarial c
 - Silver DuckDB plana e tipada, escolhida para reduzir complexidade prematura do MVP;
 - Gold com KPIs, oportunidades, vencimentos, órgãos, fornecedores, execução PJ e qualidade;
 - cache BrasilAPI separado, seletivo e não bloqueante, com cadastro, contato empresarial e regime;
+- diretório oficial com 31 unidades, 27 delas com telefone e 16 pontos oficiais; contatos isolados do rodapé e ligação exata/versionada a 23 de 24 compradores;
 - geocodificação cacheada em duas camadas, com precisão e fonte explícitas;
+- 945 das 951 organizações localizadas, incluindo 34 pontos refinados por endereço/rua no primeiro lote priorizado por valor;
 - FastAPI somente leitura, filtros parametrizados, paginação e CSV com allowlist;
 - dashboard de BI local sem dependências CDN, responsivo e validado em desktop/mobile com Playwright;
 - cross-filter instantâneo entre tipo, nicho, cidade, bairro, porte, situação, KPIs, gráficos, mapa e tabela;
 - PDF multipágina via impressão do navegador e CSV empresarial enriquecido;
-- `refresh` executa coleta, cobertura, Silver/Gold, enriquecimento CNPJ e CEP depois dos gates;
+- `refresh` executa coleta, cobertura, Silver/Gold, enriquecimento CNPJ, diretório oficial e CEP depois dos gates;
 - Docker Compose e CI reproduzível; dados reais permanecem fora do Git.
 
 O snapshot inicial identificou 14 IDs de contrato repetidos entre páginas da própria fonte. Eles são contabilizados como rejeição de chave natural e não duplicam métricas. A licitação de cabeçalho continua sem CNPJ de vencedor; portanto, nenhum match por nome alimenta os indicadores empresariais.

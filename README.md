@@ -2,21 +2,21 @@
 
 Inteligência comercial sobre compras públicas municipais, construída a partir de dados oficiais do Portal da Transparência de Cuiabá.
 
-O MVP entrega um pipeline auditável e um dashboard analítico local, no padrão de leitura de ferramentas de BI, com oportunidades, contratos, fornecedores PJ, órgãos compradores, execução financeira, qualidade dos dados e exportação CSV.
+O MVP entrega um pipeline auditável e um dashboard analítico local, no padrão de ferramentas de BI, com oportunidades, contratos, organizações PJ, credores PF em controle social separado, órgãos compradores, execução financeira, cross-filter, mapa empresarial, CSV enriquecido e relatório em PDF.
 
 ## Resultado atual
 
-Snapshot operacional de 2026 validado em 4 de setembro de 2026:
+Snapshot operacional de 2026 validado em 5 de setembro de 2026:
 
 | Domínio | Origem | Silver | Observação |
 |---|---:|---:|---|
 | Contratos | 170 | 156 | 14 duplicatas de paginação isoladas |
 | Licitações | 174 | 174 | 12 em andamento |
-| Despesas por credor | 2.150 | 2.150 | 1.204 CPFs suprimidos antes da Silver |
+| Despesas por credor | 2.150 | 2.150 | 1.204 credores PF com CPF irreversivelmente mascarado |
 
-Indicadores atuais: R$ 100,5 milhões em contratos, R$ 1,35 bilhão pagos, 2.150 registros financeiros e 951 fornecedores/credores com CNPJ válido. Quarenta perfis prioritários já foram enriquecidos pela BrasilAPI no cache local.
+Indicadores atuais: R$ 100,5 milhões em contratos, R$ 1,35 bilhão pagos, 2.150 registros financeiros, 951 organizações com CNPJ válido e R$ 13,8 milhões pagos a credores PF no recorte. Os 951 CNPJs foram enriquecidos; 945 empresas estão localizadas e 34 têm refinamento por endereço/rua. O diretório contém 31 unidades oficiais, 27 com telefone e 16 com ponto exato publicado pela Prefeitura, conectando 23 dos 24 compradores sem correspondência aproximada.
 
-O dashboard possui 15 visualizações SVG interativas, sem dependência de CDN: evolução mensal, comparação estimado/homologado, funil financeiro, situação das licitações, vencimentos, modalidades, categorias, rankings e taxas de pagamento. As tabelas paginadas permanecem disponíveis como detalhamento e exportação.
+O dashboard possui visualizações SVG sem dependência de CDN para evolução mensal, composição, funil financeiro, vencimentos, rankings e dispersão. No workspace de mercado, clicar em nicho, cidade, porte ou mapa cruza imediatamente KPIs, gráficos e tabela; filtros adicionais cobrem tipo institucional, bairro, situação, CNPJ e telefone. O botão `Relatório PDF` prepara todas as páginas para `Salvar como PDF` no navegador.
 
 ## Início rápido
 
@@ -31,7 +31,7 @@ uv sync --locked --all-groups
 Em um clone novo, gere os dados do ano desejado. `--live` é obrigatório para evitar acesso externo acidental:
 
 ```bash
-uv run radar-cuiaba refresh --year 2026 --live --enrichment-limit 20
+uv run radar-cuiaba refresh --year 2026 --live --enrichment-limit 20 --geocoding-limit 50
 ```
 
 Depois, inicie o produto:
@@ -56,9 +56,11 @@ Silver DuckDB ── contratos / licitações / despesas / rejeições
       ▼
 Gold DuckDB ── KPIs / oportunidades / renovações / rankings
       │                         │
-      │                         └── BrasilAPI → cache CNPJ permitido
+      │                         ├── BrasilAPI → perfil/contato/regime + CEP
+      │                         │             └── Nominatim opcional → endereço refinado
+      │                         └── Prefeitura → diretório, endereço e contato dos órgãos
       ▼
-FastAPI → dashboard responsivo + JSON + CSV
+FastAPI → dashboard responsivo + JSON + CSV + PDF
 ```
 
 Uma coleta parcial nunca substitui o banco analítico. A transformação lê somente runs com páginas e registros integralmente reconciliados e publica o novo DuckDB por troca atômica.
@@ -83,6 +85,15 @@ uv run radar-cuiaba transform --year 2026
 
 # enriquecer apenas novos CNPJs válidos
 uv run radar-cuiaba enrich --limit 20 --live
+
+# resolver CEPs novos e manter coordenadas em cache
+uv run radar-cuiaba geocode --limit 50 --live
+
+# atualizar endereços e contatos das unidades oficiais
+uv run radar-cuiaba enrich-agencies --limit 50 --live
+
+# refinar um lote pequeno por endereço (serial, >1s, cacheado)
+uv run radar-cuiaba geocode-addresses --limit 25 --live
 
 # cadeia completa
 uv run radar-cuiaba refresh --year 2026 --live
@@ -109,7 +120,10 @@ Todos os artefatos operacionais ficam em `data/`, fora do Git:
 | `GET /api/agencies` | órgãos compradores |
 | `GET /api/suppliers` | fornecedores PJ e perfil cadastral disponível |
 | `GET /api/expenses` | execução agregada apenas para CNPJ válido |
-| `GET /api/quality` | aceitação, rejeições e CPFs protegidos |
+| `GET /api/person-creditors` | credores PF com nome público e CPF mascarado |
+| `GET /api/market-intelligence` | métricas, cadastro, contato, nicho e geografia conectados |
+| `GET /api/agency-intelligence` | demanda, sede e contato oficial conectados por órgão |
+| `GET /api/quality` | aceitação, rejeições e documentos protegidos |
 | `GET /api/export/{dataset}.csv` | exportação permitida e protegida contra fórmulas |
 
 Listas aceitam `page` e `page_size`; filtros específicos aparecem no OpenAPI em `/api/docs`.
@@ -140,8 +154,10 @@ O dashboard ficará em `http://127.0.0.1:8000` ou na porta definida em `RADAR_PO
 
 ## Privacidade e limites
 
-- CPF não é gravado em Silver, Gold, cache CNPJ, API, tela, CSV ou logs.
-- O enriquecimento persiste cadastro empresarial, CNAE e localização; QSA, telefone e e-mail são descartados.
+- CPF integral não é gravado em Silver, Gold, cache, API, tela, CSV ou logs; somente máscara irreversível aparece na visão PF.
+- O enriquecimento persiste cadastro, CNAE, contato e endereço empresariais publicados; QSA e contatos de pessoas físicas são descartados.
+- Coordenadas declaram provedor e precisão; endereço/rua refinados prevalecem sobre o centroide de CEP.
+- Órgãos são ligados ao diretório oficial somente por nome canônico exato ou alias manual versionado.
 - Vínculos empresariais entram nos indicadores somente por CNPJ válido e exato.
 - A licitação não fornece CNPJ do vencedor no cabeçalho; nome semelhante não é tratado como identidade.
 - Valores refletem a publicação da fonte e não constituem recomendação comercial ou garantia de contratação.
