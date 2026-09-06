@@ -666,7 +666,7 @@ function renderAgencyDirectoryList(locations, total = locations.length) {
       <button type="button" data-agency-buyer="${html(item.buyer)}"><span>${html(shortName(item.agency_name, 44))}</span><strong>${html(money(item.contract_value, true))}</strong></button>
       <p>Comprador: ${html(shortName(item.buyer, 54))} · ${html(scope)} · ${integer.format(item.procurement_count)} licitações · ${integer.format(item.contract_count)} contratos</p>
       <address>${html(clipped(item.address, 100))}</address>
-      <footer>${primaryPhone ? `<a href="tel:${html(primaryPhone)}">${html(phone(primaryPhone))}</a>` : "<span>Telefone não informado</span>"}${primaryEmail ? `<a href="mailto:${html(primaryEmail)}">${html(clipped(primaryEmail, 33))}</a>` : ""}<a href="${html(item.source_url)}" target="_blank" rel="noopener">Fonte ↗</a></footer>
+      <footer>${primaryPhone ? `<a href="tel:${html(primaryPhone)}">${html(phone(primaryPhone))}</a>` : "<span>Telefone não informado</span>"}${primaryEmail ? `<a href="mailto:${html(primaryEmail)}">${html(clipped(primaryEmail, 33))}</a>` : ""}${item.geocode_source_url ? `<a href="${html(item.geocode_source_url)}" target="_blank" rel="noopener">${item.geocode_accuracy === "official_point" ? "Mapa" : "CEP"} ↗</a>` : ""}<a href="${html(item.source_url)}" target="_blank" rel="noopener">Fonte ↗</a></footer>
     </article>`;
   }).join("") : '<div class="directory-empty">Nenhuma unidade oficial ligada a este ponto.</div>';
   const suffix = sorted.length < total ? ` de ${integer.format(total)}` : "";
@@ -677,9 +677,25 @@ function renderAgencyDirectoryList(locations, total = locations.length) {
 
 function renderAgencyDirectory(payload) {
   const locations = flattenedAgencyLocations(payload);
-  const located = locations.filter((item) => Number.isFinite(Number(item.longitude))
-    && Number.isFinite(Number(item.latitude)));
-  element("#agency-directory-coverage").textContent = `${integer.format(payload.coverage.matched_agency_count)} de ${integer.format(payload.coverage.agency_count)} compradores ligados a ${integer.format(payload.coverage.directory_count)} unidades oficiais`;
+  const boundary = window.CUIABA_BOUNDARY || [];
+  const boundaryLongitudes = boundary.length
+    ? boundary.map((point) => point[0]) : [-56.45, -55.75];
+  const boundaryLatitudes = boundary.length
+    ? boundary.map((point) => point[1]) : [-16.0, -15.3];
+  const cityBounds = {
+    minLongitude: Math.min(...boundaryLongitudes),
+    maxLongitude: Math.max(...boundaryLongitudes),
+    minLatitude: Math.min(...boundaryLatitudes),
+    maxLatitude: Math.max(...boundaryLatitudes),
+  };
+  const located = locations.filter((item) => {
+    const longitude = Number(item.longitude);
+    const latitude = Number(item.latitude);
+    return Number.isFinite(longitude) && Number.isFinite(latitude)
+      && longitude >= cityBounds.minLongitude && longitude <= cityBounds.maxLongitude
+      && latitude >= cityBounds.minLatitude && latitude <= cityBounds.maxLatitude;
+  });
+  element("#agency-directory-coverage").textContent = `${integer.format(payload.coverage.matched_agency_count)} de ${integer.format(payload.coverage.agency_count)} compradores ligados · ${integer.format(payload.coverage.phone_unit_count)} unidades com telefone · ${integer.format(payload.coverage.official_location_count)} pontos oficiais`;
   renderAgencyDirectoryList(locations);
 
   const width = 1000;
@@ -701,12 +717,27 @@ function renderAgencyDirectory(payload) {
     x: padding + (longitude - bounds.minLongitude) / (bounds.maxLongitude - bounds.minLongitude) * (width - padding * 2),
     y: padding + (bounds.maxLatitude - latitude) / (bounds.maxLatitude - bounds.minLatitude) * (height - padding * 2),
   });
+  const inset = { x: 825, y: 26, width: 138, height: 112, padding: 8 };
+  const projectInset = (longitude, latitude) => ({
+    x: inset.x + inset.padding + (longitude - cityBounds.minLongitude)
+      / (cityBounds.maxLongitude - cityBounds.minLongitude) * (inset.width - inset.padding * 2),
+    y: inset.y + inset.padding + (cityBounds.maxLatitude - latitude)
+      / (cityBounds.maxLatitude - cityBounds.minLatitude) * (inset.height - inset.padding * 2),
+  });
+  const insetPath = boundary.map((point, index) => {
+    const projected = projectInset(point[0], point[1]);
+    return `${index ? "L" : "M"}${projected.x.toFixed(1)},${projected.y.toFixed(1)}`;
+  }).join(" ") + (boundary.length ? " Z" : "");
+  const insetUrbanStart = projectInset(bounds.minLongitude, bounds.maxLatitude);
+  const insetUrbanEnd = projectInset(bounds.maxLongitude, bounds.minLatitude);
   const grouped = new Map();
   located.forEach((item) => {
     const key = `${Number(item.longitude).toFixed(5)},${Number(item.latitude).toFixed(5)}`;
-    const current = grouped.get(key) || { key, longitude: Number(item.longitude), latitude: Number(item.latitude), items: [], value: 0 };
+    const current = grouped.get(key) || { key, longitude: Number(item.longitude), latitude: Number(item.latitude), items: [], value: 0, unitAddresses: 0, officialPoints: 0 };
     current.items.push(item);
     current.value += Number(item.allocated_contract_value) || 0;
+    if (item.address_scope === "unit") current.unitAddresses += 1;
+    if (item.geocode_accuracy === "official_point") current.officialPoints += 1;
     grouped.set(key, current);
   });
   const groups = [...grouped.values()];
@@ -715,11 +746,14 @@ function renderAgencyDirectory(payload) {
     const point = project(group.longitude, group.latitude);
     const size = 16 + Math.sqrt(group.value / maximum) * 18 + Math.min(8, group.items.length);
     const names = [...new Set(group.items.map((item) => shortName(item.agency_name, 28)))];
-    const label = `${names.slice(0, 2).join(" / ")} · ${integer.format(group.items.length)} unidades · ${money(group.value)} contratados`;
-    return `<button class="map-marker agency-map-marker${group.items.length > 1 ? " cluster" : ""}" type="button" style="--x:${point.x / width * 100}%;--y:${point.y / height * 100}%;--size:${size}px;--z:${group.items.length + 2}" data-agency-coordinate="${html(group.key)}" aria-label="Ver ${html(label)}" title="${html(label)}"><span>${group.items.length > 1 ? integer.format(group.items.length) : ""}</span></button>`;
+    const unitLabel = group.items.length === 1 ? "unidade" : "unidades";
+    const label = `${names.slice(0, 2).join(" / ")} · ${integer.format(group.items.length)} ${unitLabel} · ${money(group.value)} de volume relacionado`;
+    const generalOnly = group.unitAddresses === 0;
+    const approximate = group.officialPoints === 0;
+    return `<button class="map-marker agency-map-marker${group.items.length > 1 ? " cluster" : ""}${generalOnly ? " general" : ""}${approximate ? " approximate" : ""}" type="button" style="--x:${point.x / width * 100}%;--y:${point.y / height * 100}%;--size:${size}px;--z:${group.items.length + 2}" data-agency-coordinate="${html(group.key)}" aria-label="Ver ${html(label)}" title="${html(label)}"><span>${group.items.length > 1 ? integer.format(group.items.length) : ""}</span></button>`;
   }).join("");
   const empty = located.length ? "" : '<div class="map-empty">O diretório ainda não possui unidades geocodificadas.</div>';
-  element("#agency-map").innerHTML = `<svg viewBox="0 0 ${width} ${height}" aria-hidden="true"><defs><pattern id="agency-map-grid" width="54" height="54" patternUnits="userSpaceOnUse"><path d="M54 0H0V54" fill="none" stroke="currentColor" stroke-opacity=".08"/></pattern></defs><rect width="100%" height="100%" fill="url(#agency-map-grid)"/><text x="44" y="520">CUIABÁ · UNIDADES OFICIAIS</text></svg><span class="map-zoom-label">COMPRADORES</span>${markers}${empty}`;
+  element("#agency-map").innerHTML = `<svg viewBox="0 0 ${width} ${height}" aria-hidden="true"><defs><pattern id="agency-map-grid" width="54" height="54" patternUnits="userSpaceOnUse"><path d="M54 0H0V54" fill="none" stroke="currentColor" stroke-opacity=".08"/></pattern></defs><rect width="100%" height="100%" fill="url(#agency-map-grid)"/><g class="map-inset"><rect class="map-inset-frame" x="${inset.x}" y="${inset.y}" width="${inset.width}" height="${inset.height}" rx="10"/><path class="map-inset-shape" d="${insetPath}"/><rect class="map-inset-viewport" x="${insetUrbanStart.x.toFixed(1)}" y="${insetUrbanStart.y.toFixed(1)}" width="${Math.max(3, insetUrbanEnd.x - insetUrbanStart.x).toFixed(1)}" height="${Math.max(3, insetUrbanEnd.y - insetUrbanStart.y).toFixed(1)}"/><text class="map-inset-label" x="${inset.x + 9}" y="${inset.y + inset.height + 17}">MUNICÍPIO</text></g><text x="44" y="520">CUIABÁ · ÁREA URBANA AMPLIADA</text></svg><span class="map-zoom-label">COMPRADORES</span><span class="map-legend"><i></i> Ponto oficial <i class="approximate"></i> CEP/referência geral</span>${markers}${empty}`;
   element("#agency-map-count").textContent = `${integer.format(located.length)} unidades · ${integer.format(groups.length)} pontos`;
   element("#view-agencies")._agencyLocations = locations;
 }

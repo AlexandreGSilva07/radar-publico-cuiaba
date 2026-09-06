@@ -2342,6 +2342,19 @@ td small {
   background: var(--amber);
 }
 
+.agency-map-marker.general,
+.map-legend i.general {
+  background: var(--blue-dark);
+}
+
+.agency-map-marker.approximate {
+  background: var(--blue);
+}
+
+.agency-map-marker.general.approximate {
+  background: var(--blue-dark);
+}
+
 .map-marker.precise {
   background: var(--green);
 }
