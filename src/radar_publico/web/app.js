@@ -16,7 +16,7 @@ const exportsByView = {
   opportunities: "opportunities",
   contracts: "contracts",
   suppliers: "market-intelligence",
-  agencies: "agencies",
+  agencies: "agency-intelligence",
   expenses: "expenses",
   people: "person-creditors",
   quality: "opportunities",
@@ -174,6 +174,7 @@ function rounded(value, digits = 1) {
 let contextPromise;
 let analyticsPromise;
 let marketPromise;
+let agencyIntelligencePromise;
 
 function getContext(force = false) {
   if (force || !contextPromise) {
@@ -190,6 +191,13 @@ function getAnalytics(force = false) {
 function getMarket(force = false) {
   if (force || !marketPromise) marketPromise = api("/api/market-intelligence");
   return marketPromise;
+}
+
+function getAgencyIntelligence(force = false) {
+  if (force || !agencyIntelligencePromise) {
+    agencyIntelligencePromise = api("/api/agency-intelligence");
+  }
+  return agencyIntelligencePromise;
 }
 
 function applyContext(summary, metadata) {
@@ -629,6 +637,93 @@ function renderAgencyCharts(analytics) {
   });
 }
 
+function flattenedAgencyLocations(payload) {
+  return payload.items.flatMap((buyer) => {
+    const locationCount = Math.max(buyer.locations.length, 1);
+    return buyer.locations.map((location) => ({
+      ...location,
+      buyer: buyer.agency,
+      procurement_count: buyer.procurement_count,
+      open_procurements: buyer.open_procurements,
+      contract_count: buyer.contract_count,
+      contract_value: buyer.contract_value,
+      allocated_contract_value: Number(buyer.contract_value) / locationCount,
+      estimated_value: buyer.estimated_value,
+    }));
+  });
+}
+
+function renderAgencyDirectoryList(locations, total = locations.length) {
+  const sorted = [...locations].sort(
+    (a, b) => Number(b.contract_value) - Number(a.contract_value)
+      || Number(b.estimated_value) - Number(a.estimated_value),
+  );
+  element("#agency-directory-list").innerHTML = sorted.length ? sorted.slice(0, 8).map((item) => {
+    const primaryPhone = item.phones?.[0];
+    const primaryEmail = item.emails?.[0];
+    const scope = item.address_scope === "unit" ? "Sede da unidade" : "Endereço geral da Prefeitura";
+    return `<article class="agency-contact-card">
+      <button type="button" data-agency-buyer="${html(item.buyer)}"><span>${html(shortName(item.agency_name, 44))}</span><strong>${html(money(item.contract_value, true))}</strong></button>
+      <p>Comprador: ${html(shortName(item.buyer, 54))} · ${html(scope)} · ${integer.format(item.procurement_count)} licitações · ${integer.format(item.contract_count)} contratos</p>
+      <address>${html(clipped(item.address, 100))}</address>
+      <footer>${primaryPhone ? `<a href="tel:${html(primaryPhone)}">${html(phone(primaryPhone))}</a>` : "<span>Telefone não informado</span>"}${primaryEmail ? `<a href="mailto:${html(primaryEmail)}">${html(clipped(primaryEmail, 33))}</a>` : ""}<a href="${html(item.source_url)}" target="_blank" rel="noopener">Fonte ↗</a></footer>
+    </article>`;
+  }).join("") : '<div class="directory-empty">Nenhuma unidade oficial ligada a este ponto.</div>';
+  const suffix = sorted.length < total ? ` de ${integer.format(total)}` : "";
+  element("#agency-directory-list").setAttribute(
+    "aria-label", `${integer.format(sorted.length)}${suffix} unidades oficiais`,
+  );
+}
+
+function renderAgencyDirectory(payload) {
+  const locations = flattenedAgencyLocations(payload);
+  const located = locations.filter((item) => Number.isFinite(Number(item.longitude))
+    && Number.isFinite(Number(item.latitude)));
+  element("#agency-directory-coverage").textContent = `${integer.format(payload.coverage.matched_agency_count)} de ${integer.format(payload.coverage.agency_count)} compradores ligados a ${integer.format(payload.coverage.directory_count)} unidades oficiais`;
+  renderAgencyDirectoryList(locations);
+
+  const width = 1000;
+  const height = 560;
+  const padding = 44;
+  const longitudes = located.length
+    ? located.map((item) => Number(item.longitude)) : [-56.18, -56.02];
+  const latitudes = located.length
+    ? located.map((item) => Number(item.latitude)) : [-15.67, -15.54];
+  const longitudeSpan = Math.max(Math.max(...longitudes) - Math.min(...longitudes), 0.015);
+  const latitudeSpan = Math.max(Math.max(...latitudes) - Math.min(...latitudes), 0.015);
+  const bounds = {
+    minLongitude: Math.min(...longitudes) - longitudeSpan * 0.14,
+    maxLongitude: Math.max(...longitudes) + longitudeSpan * 0.14,
+    minLatitude: Math.min(...latitudes) - latitudeSpan * 0.14,
+    maxLatitude: Math.max(...latitudes) + latitudeSpan * 0.14,
+  };
+  const project = (longitude, latitude) => ({
+    x: padding + (longitude - bounds.minLongitude) / (bounds.maxLongitude - bounds.minLongitude) * (width - padding * 2),
+    y: padding + (bounds.maxLatitude - latitude) / (bounds.maxLatitude - bounds.minLatitude) * (height - padding * 2),
+  });
+  const grouped = new Map();
+  located.forEach((item) => {
+    const key = `${Number(item.longitude).toFixed(5)},${Number(item.latitude).toFixed(5)}`;
+    const current = grouped.get(key) || { key, longitude: Number(item.longitude), latitude: Number(item.latitude), items: [], value: 0 };
+    current.items.push(item);
+    current.value += Number(item.allocated_contract_value) || 0;
+    grouped.set(key, current);
+  });
+  const groups = [...grouped.values()];
+  const maximum = Math.max(...groups.map((item) => item.value), 1);
+  const markers = groups.map((group) => {
+    const point = project(group.longitude, group.latitude);
+    const size = 16 + Math.sqrt(group.value / maximum) * 18 + Math.min(8, group.items.length);
+    const names = [...new Set(group.items.map((item) => shortName(item.agency_name, 28)))];
+    const label = `${names.slice(0, 2).join(" / ")} · ${integer.format(group.items.length)} unidades · ${money(group.value)} contratados`;
+    return `<button class="map-marker agency-map-marker${group.items.length > 1 ? " cluster" : ""}" type="button" style="--x:${point.x / width * 100}%;--y:${point.y / height * 100}%;--size:${size}px;--z:${group.items.length + 2}" data-agency-coordinate="${html(group.key)}" aria-label="Ver ${html(label)}" title="${html(label)}"><span>${group.items.length > 1 ? integer.format(group.items.length) : ""}</span></button>`;
+  }).join("");
+  const empty = located.length ? "" : '<div class="map-empty">O diretório ainda não possui unidades geocodificadas.</div>';
+  element("#agency-map").innerHTML = `<svg viewBox="0 0 ${width} ${height}" aria-hidden="true"><defs><pattern id="agency-map-grid" width="54" height="54" patternUnits="userSpaceOnUse"><path d="M54 0H0V54" fill="none" stroke="currentColor" stroke-opacity=".08"/></pattern></defs><rect width="100%" height="100%" fill="url(#agency-map-grid)"/><text x="44" y="520">CUIABÁ · UNIDADES OFICIAIS</text></svg><span class="map-zoom-label">COMPRADORES</span>${markers}${empty}`;
+  element("#agency-map-count").textContent = `${integer.format(located.length)} unidades · ${integer.format(groups.length)} pontos`;
+  element("#view-agencies")._agencyLocations = locations;
+}
+
 function renderExpenseCharts(analytics) {
   const leaders = analytics.expense_leaders.slice(0, 6);
   const paymentLeader = leaders[0] || { supplier_name: "Nenhum credor", paid_value: 0 };
@@ -788,9 +883,10 @@ async function loadAgencies(page = 1) {
   const parameters = queryString({ page, page_size: 20, q: element("#agencies-search").value.trim() });
   try {
     const needsCharts = !appState.loaded.has("agencies");
-    const [payload, analytics] = await Promise.all([
+    const [payload, analytics, agencyIntelligence] = await Promise.all([
       api(`/api/agencies?${parameters}`),
       needsCharts ? getAnalytics() : Promise.resolve(null),
+      needsCharts ? getAgencyIntelligence() : Promise.resolve(null),
     ]);
     appState.pages.agencies = page;
     element("#agencies-total").textContent = integer.format(payload.total);
@@ -800,6 +896,7 @@ async function loadAgencies(page = 1) {
       <td class="numeric"><strong>${html(money(item.contract_value))}</strong></td></tr>`).join("") : emptyRow(5);
     renderPagination("#agencies-pagination", payload, loadAgencies);
     if (analytics) renderAgencyCharts(analytics);
+    if (agencyIntelligence) renderAgencyDirectory(agencyIntelligence);
     appState.loaded.add("agencies"); showStatus("Órgãos atualizados.", "success");
   } catch (error) { showError(error); }
 }
@@ -949,6 +1046,7 @@ element("#refresh-button").addEventListener("click", () => {
   } else {
     analyticsPromise = undefined;
     if (view === "suppliers") marketPromise = undefined;
+    if (view === "agencies") agencyIntelligencePromise = undefined;
     loadContext(true).catch(showError);
     loaders[view](appState.pages[view] || 1);
   }
@@ -1021,6 +1119,32 @@ element("#view-suppliers").addEventListener("click", (event) => {
     if (selectId) element(`#${selectId}`).value = "";
     updateMarketView();
   }
+});
+element("#view-agencies").addEventListener("click", (event) => {
+  const marker = event.target.closest("[data-agency-coordinate]");
+  const buyer = event.target.closest("[data-agency-buyer]");
+  if (marker) {
+    const locations = element("#view-agencies")._agencyLocations || [];
+    const selected = locations.filter((item) => (
+      `${Number(item.longitude).toFixed(5)},${Number(item.latitude).toFixed(5)}`
+        === marker.dataset.agencyCoordinate
+    ));
+    element("#agency-map").querySelectorAll(".agency-map-marker").forEach((item) => {
+      item.classList.toggle("active", item === marker);
+    });
+    renderAgencyDirectoryList(selected);
+  } else if (buyer) {
+    element("#agencies-search").value = buyer.dataset.agencyBuyer;
+    loadAgencies(1);
+    element("#agencies-search").scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+});
+element("#agency-map-reset").addEventListener("click", () => {
+  const locations = element("#view-agencies")._agencyLocations || [];
+  renderAgencyDirectoryList(locations);
+  element("#agency-map").querySelectorAll(".agency-map-marker").forEach(
+    (item) => item.classList.remove("active"),
+  );
 });
 let resizeTimer;
 window.addEventListener("resize", () => {

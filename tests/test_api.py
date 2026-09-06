@@ -115,6 +115,8 @@ def test_health_metadata_and_summary(tmp_path: Path) -> None:
     assert 'id="contracts-month-chart"' in dashboard.text
     assert 'id="suppliers-contract-chart"' in dashboard.text
     assert 'id="agencies-value-chart"' in dashboard.text
+    assert 'id="agency-map"' in dashboard.text
+    assert 'id="agency-directory-list"' in dashboard.text
     assert 'id="expenses-leaders-chart"' in dashboard.text
     assert 'id="view-people"' in dashboard.text
     assert 'id="people-leaders-chart"' in dashboard.text
@@ -242,6 +244,14 @@ def test_agency_intelligence_connects_exact_official_directory(tmp_path: Path) -
     assert location["agency_name"] == "Secretaria Teste"
     assert location["phones"] == ["6533334444"]
     assert location["longitude"] == -56.0979
+
+    export = TestClient(create_app(analytics, enrichment)).get(
+        "/api/export/agency-intelligence.csv"
+    )
+    assert export.status_code == 200
+    assert "official_unit" in export.text
+    assert "Secretaria Teste" in export.text
+    assert "6533334444" in export.text
 
 
 def test_analytics_exposes_chart_ready_aggregates(tmp_path: Path) -> None:

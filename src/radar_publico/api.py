@@ -734,6 +734,46 @@ def create_app(
 
     @application.get("/api/export/{dataset}.csv", response_class=Response)
     def export_csv(dataset: str) -> Response:
+        if dataset == "agency-intelligence":
+            try:
+                payload = database.agency_intelligence()
+            except (duckdb.Error, FileNotFoundError) as exc:
+                raise HTTPException(
+                    status_code=503, detail="agency intelligence unavailable"
+                ) from exc
+            fields = (
+                "agency",
+                "procurement_count",
+                "open_procurements",
+                "contract_count",
+                "contract_value",
+                "estimated_value",
+                "awarded_value",
+                "official_unit",
+                "directory_kind",
+                "address",
+                "address_scope",
+                "postal_code",
+                "phones",
+                "emails",
+                "longitude",
+                "latitude",
+                "source_url",
+                "geocode_source_url",
+            )
+            rows = []
+            for agency in payload["items"]:
+                locations = agency["locations"] or [{}]
+                for location in locations:
+                    row = {
+                        **agency,
+                        "official_unit": location.get("agency_name"),
+                        **location,
+                        "phones": " | ".join(location.get("phones", [])),
+                        "emails": " | ".join(location.get("emails", [])),
+                    }
+                    rows.append({field: row.get(field) for field in fields})
+            return _csv_response(dataset, rows)
         if dataset == "market-intelligence":
             try:
                 _, companies = database.market_companies()

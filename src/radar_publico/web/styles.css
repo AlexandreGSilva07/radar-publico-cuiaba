@@ -2332,6 +2332,16 @@ td small {
   transform: translate(-50%, -50%) scale(1.25);
 }
 
+.agency-map-marker {
+  background: var(--green);
+}
+
+.agency-map-marker.active {
+  outline: 3px solid rgb(233 155 37 / 45%);
+  outline-offset: 3px;
+  background: var(--amber);
+}
+
 .map-marker.precise {
   background: var(--green);
 }
@@ -2419,6 +2429,91 @@ td small {
 .source-footnote {
   color: var(--muted);
   font-size: 0.58rem;
+}
+
+.agency-directory-panel {
+  overflow: hidden;
+}
+
+.agency-directory-list {
+  display: grid;
+  max-height: 405px;
+  gap: 1px;
+  overflow-y: auto;
+  background: var(--line-soft);
+}
+
+.agency-contact-card {
+  padding: 12px 15px;
+  background: white;
+}
+
+.agency-contact-card > button {
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  color: var(--ink);
+  background: transparent;
+  font-size: 0.65rem;
+  font-weight: 820;
+  text-align: left;
+  cursor: pointer;
+}
+
+.agency-contact-card > button:hover span {
+  color: var(--green-dark);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.agency-contact-card > button strong {
+  color: var(--green-dark);
+  white-space: nowrap;
+}
+
+.agency-contact-card p,
+.agency-contact-card address {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 0.51rem;
+  font-style: normal;
+  line-height: 1.45;
+}
+
+.agency-contact-card address {
+  color: var(--ink-soft);
+}
+
+.agency-contact-card footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 10px;
+  margin-top: 7px;
+  font-size: 0.51rem;
+  font-weight: 700;
+}
+
+.agency-contact-card footer a {
+  color: var(--blue-dark);
+}
+
+.agency-contact-card footer a:last-child {
+  margin-left: auto;
+  color: var(--green-dark);
+}
+
+.directory-empty {
+  display: grid;
+  min-height: 320px;
+  place-items: center;
+  padding: 25px;
+  color: var(--muted);
+  background: white;
+  font-size: 0.62rem;
+  text-align: center;
 }
 
 .source-footnote {
