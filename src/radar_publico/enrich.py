@@ -451,6 +451,7 @@ def geocode_company_addresses(
     cache_path: Path,
     http: PublicClient,
     limit: int,
+    analytics_path: Path | None = None,
     max_age_days: int = 365,
     interval: float = 1.1,
 ) -> AddressGeocodingReport:
@@ -466,8 +467,33 @@ def geocode_company_addresses(
     rows = connection.execute(
         "SELECT cnpj, street, street_number, city, state, postal_code "
         "FROM company_profile WHERE street IS NOT NULL AND city IS NOT NULL "
-        "AND state IS NOT NULL ORDER BY (upper(city) IN ('CUIABA', 'CUIABÁ')) DESC, cnpj"
+        "AND state IS NOT NULL"
     ).fetchall()
+    priorities: dict[str, int] = {}
+    if analytics_path is not None and analytics_path.exists():
+        analytics = duckdb.connect(str(analytics_path), read_only=True)
+        try:
+            priorities = {
+                str(row[0]): index
+                for index, row in enumerate(
+                    analytics.execute(
+                        "SELECT cnpj FROM gold_suppliers ORDER BY "
+                        "greatest(coalesce(paid_value, 0), coalesce(contract_value, 0)) DESC, "
+                        "cnpj"
+                    ).fetchall()
+                )
+            }
+        except duckdb.Error:
+            priorities = {}
+        finally:
+            analytics.close()
+    rows.sort(
+        key=lambda row: (
+            str(row[3]).upper() not in {"CUIABA", "CUIABÁ"},
+            priorities.get(str(row[0]), len(priorities)),
+            str(row[0]),
+        )
+    )
     candidates = [
         (
             str(row[0]),

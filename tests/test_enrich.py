@@ -241,3 +241,57 @@ def test_refines_company_address_with_cached_nominatim_result(tmp_path: Path) ->
         "SELECT provider, accuracy, longitude, latitude FROM company_address_location"
     ).fetchone() == ("nominatim-openstreetmap", "street", -56.088908, -15.5962153)
     connection.close()
+
+
+@respx.mock
+def test_address_geocoding_prioritizes_high_value_companies(tmp_path: Path) -> None:
+    cache = tmp_path / "enrichment.duckdb"
+    connection = duckdb.connect(str(cache))
+    connection.execute(
+        "CREATE TABLE company_profile(cnpj VARCHAR, street VARCHAR, street_number VARCHAR, "
+        "city VARCHAR, state VARCHAR, postal_code VARCHAR)"
+    )
+    connection.execute(
+        "INSERT INTO company_profile VALUES "
+        "('00000000000191', 'RUA MENOR', '1', 'CUIABA', 'MT', '78000001'), "
+        "('99999999000191', 'RUA PRIORITARIA', '2', 'CUIABA', 'MT', '78000002')"
+    )
+    connection.close()
+    analytics_path = tmp_path / "analytics.duckdb"
+    analytics = duckdb.connect(str(analytics_path))
+    analytics.execute(
+        "CREATE TABLE gold_suppliers(cnpj VARCHAR, paid_value DECIMAL(18,2), "
+        "contract_value DECIMAL(18,2))"
+    )
+    analytics.execute(
+        "INSERT INTO gold_suppliers VALUES "
+        "('00000000000191', 10, 10), ('99999999000191', 1000, 1000)"
+    )
+    analytics.close()
+    route = respx.get(url__startswith=NOMINATIM_SEARCH).mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {
+                    "lat": "-15.60",
+                    "lon": "-56.09",
+                    "display_name": "Rua Prioritária, Cuiabá, Brasil",
+                    "type": "residential",
+                    "addresstype": "road",
+                    "address": {"city": "Cuiabá", "country_code": "br"},
+                }
+            ],
+        )
+    )
+
+    with PublicClient(backoff=0) as http:
+        report = geocode_company_addresses(
+            cache_path=cache,
+            analytics_path=analytics_path,
+            http=http,
+            limit=1,
+            interval=0,
+        )
+
+    assert report.geocoded == 1
+    assert route.calls[0].request.url.params["street"] == "2 RUA PRIORITARIA"

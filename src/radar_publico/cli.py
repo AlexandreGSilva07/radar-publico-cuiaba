@@ -259,6 +259,7 @@ def geocode_addresses_command(
     limit: int = typer.Option(25, min=1, help="Máximo de endereços nesta execução."),
     max_age_days: int = typer.Option(365, min=0, help="Validade do resultado em cache."),
     cache_path: Path = typer.Option(Path("data/enrichment.duckdb")),
+    analytics_path: Path = typer.Option(Path("data/analytics.duckdb")),
 ) -> None:
     """Refina coordenadas por endereço, respeitando a política pública do OpenStreetMap."""
     if not live:
@@ -270,6 +271,7 @@ def geocode_addresses_command(
                 cache_path=cache_path,
                 http=http,
                 limit=limit,
+                analytics_path=analytics_path,
             )
     except EnrichmentError as exc:
         typer.echo(f"Geocodificação de endereços falhou: {exc}", err=True)
