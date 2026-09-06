@@ -7,7 +7,11 @@ import duckdb
 import httpx
 import respx
 
-from radar_publico.agencies import DIRECTORY_ROOT, enrich_agency_directory
+from radar_publico.agencies import (
+    DIRECTORY_ROOT,
+    directory_slugs_for,
+    enrich_agency_directory,
+)
 from radar_publico.http import PublicClient
 
 
@@ -70,3 +74,17 @@ def test_collects_official_agency_address_and_contacts(tmp_path: Path) -> None:
         "unit",
     )
     connection.close()
+
+
+def test_agency_matching_uses_only_exact_names_or_versioned_aliases() -> None:
+    directory = [
+        {"slug": "governo", "agency_name": "Governo"},
+        {"slug": "educacao", "agency_name": "Educação"},
+        {"slug": "cultura", "agency_name": "Cultura"},
+        {"slug": "esportes-e-lazer", "agency_name": "Esportes e Lazer"},
+    ]
+    assert directory_slugs_for("SECRETARIA MUNICIPAL DE GOVERNO", directory) == ("governo",)
+    assert directory_slugs_for(
+        "SECRETARIA MUNICIPAL DE EDUCAÇÃO, CULTURA, ESPORTE E LAZER", directory
+    ) == ("educacao", "cultura", "esportes-e-lazer")
+    assert directory_slugs_for("Secretaria parecida", directory) == ()

@@ -55,6 +55,7 @@ def _analytics(path: Path) -> None:
 def _enrichment(path: Path) -> None:
     connection = duckdb.connect(str(path))
     connection.execute(files("radar_publico").joinpath("migrations/004_enrichment.sql").read_text())
+    connection.execute(files("radar_publico").joinpath("migrations/005_agencies.sql").read_text())
     connection.execute(
         """
         INSERT INTO company_profile(
@@ -80,6 +81,11 @@ def _enrichment(path: Path) -> None:
           '00000000000191', 'fingerprint', 'nominatim-openstreetmap', 'street',
           'residential', 'Rua Teste, Cuiabá, Brasil', -56.0889, -15.5962,
           'https://nominatim.openstreetmap.org/search', current_timestamp
+        );
+        INSERT INTO agency_directory VALUES (
+          'https://www.cuiaba.mt.gov.br/secretarias/teste', 'secretaria', 'teste',
+          'Secretaria Teste', 'Rua Teste, 10, Cuiabá-MT - 78000-001', '78000001',
+          '["6533334444"]', '["orgao@cuiaba.mt.gov.br"]', 'hash', current_timestamp, 'unit'
         );
         """
     )
@@ -219,6 +225,23 @@ def test_quality_and_pipeline_are_available(tmp_path: Path) -> None:
 
     assert client.get("/api/pipeline").json()[0]["status"] == "EM ANDAMENTO"
     assert client.get("/api/quality").json()[0]["acceptance_rate"] == 100.0
+
+
+def test_agency_intelligence_connects_exact_official_directory(tmp_path: Path) -> None:
+    analytics = tmp_path / "analytics.duckdb"
+    enrichment = tmp_path / "enrichment.duckdb"
+    _analytics(analytics)
+    _enrichment(enrichment)
+    response = TestClient(create_app(analytics, enrichment)).get("/api/agency-intelligence")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["coverage"]["agency_count"] == 1
+    assert data["coverage"]["matched_agency_count"] == 1
+    location = data["items"][0]["locations"][0]
+    assert location["agency_name"] == "Secretaria Teste"
+    assert location["phones"] == ["6533334444"]
+    assert location["longitude"] == -56.0979
 
 
 def test_analytics_exposes_chart_ready_aggregates(tmp_path: Path) -> None:

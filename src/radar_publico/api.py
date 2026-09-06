@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import math
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -17,6 +18,7 @@ from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 
 from radar_publico import __version__
+from radar_publico.agencies import directory_slugs_for
 from radar_publico.normalize import search_text as normalize_search_text
 
 PORTAL_URL = "https://transparencia.cuiaba.mt.gov.br/portaltransparencia/"
@@ -274,6 +276,65 @@ class AnalyticsDatabase:
             if str(item["cnpj"]) in profiles
         ]
         return len(metrics), items
+
+    def agency_directory(self) -> list[dict[str, Any]]:
+        path = self.enrichment_path
+        if path is None or not path.exists():
+            return []
+        connection = duckdb.connect(str(path), read_only=True)
+        try:
+            exists = connection.execute(
+                "SELECT count(*) FROM information_schema.tables WHERE table_name='agency_directory'"
+            ).fetchone()
+            if not exists or not exists[0]:
+                return []
+            result = connection.execute(
+                "SELECT d.source_url, d.directory_kind, d.slug, d.agency_name, d.address, "
+                "d.address_scope, d.postal_code, d.phones_json, d.emails_json, d.fetched_at, "
+                "l.longitude, l.latitude, l.provider AS geocode_provider, "
+                "l.source_url AS geocode_source_url FROM agency_directory d "
+                "LEFT JOIN company_location l USING (postal_code) ORDER BY d.agency_name"
+            )
+            columns = [item[0] for item in result.description]
+            rows = [dict(zip(columns, row, strict=True)) for row in result.fetchall()]
+            for row in rows:
+                row["phones"] = json.loads(row.pop("phones_json"))
+                row["emails"] = json.loads(row.pop("emails_json"))
+            return rows
+        finally:
+            connection.close()
+
+    def agency_intelligence(self) -> dict[str, Any]:
+        agencies = self.rows(
+            "SELECT agency, procurement_count, open_procurements, contract_count, "
+            "contract_value, estimated_value, awarded_value FROM gold_agencies "
+            "ORDER BY contract_value DESC, estimated_value DESC"
+        )
+        directory = self.agency_directory()
+        by_slug = {str(item["slug"]): item for item in directory}
+        matched = 0
+        items = []
+        for agency in agencies:
+            locations = [
+                by_slug[slug]
+                for slug in directory_slugs_for(agency["agency"], directory)
+                if slug in by_slug
+            ]
+            if locations:
+                matched += 1
+            items.append({**agency, "locations": locations})
+        return {
+            "coverage": {
+                "agency_count": len(agencies),
+                "matched_agency_count": matched,
+                "directory_count": len(directory),
+                "located_unit_count": sum(
+                    item["longitude"] is not None and item["latitude"] is not None
+                    for item in directory
+                ),
+            },
+            "items": items,
+        }
 
 
 def _paged(
@@ -632,6 +693,21 @@ def create_app(
                 },
             ],
         }
+
+    @application.get("/api/agency-intelligence")
+    def agency_intelligence() -> dict[str, Any]:
+        try:
+            payload = database.agency_intelligence()
+        except (duckdb.Error, FileNotFoundError) as exc:
+            raise HTTPException(status_code=503, detail="agency intelligence unavailable") from exc
+        payload["sources"] = [
+            {"name": "Portal da Transparência de Cuiabá", "url": PORTAL_URL},
+            {
+                "name": "Diretório oficial da Prefeitura",
+                "url": "https://www.cuiaba.mt.gov.br/secretarias",
+            },
+        ]
+        return payload
 
     @application.get("/api/pipeline")
     def pipeline() -> list[dict[str, Any]]:

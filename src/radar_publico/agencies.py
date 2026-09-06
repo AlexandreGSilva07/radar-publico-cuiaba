@@ -16,13 +16,28 @@ from urllib.parse import urljoin, urlparse
 import duckdb
 
 from radar_publico.http import HttpError, PublicClient
-from radar_publico.normalize import text
+from radar_publico.normalize import search_text, text
 
 DIRECTORY_ROOT = "https://www.cuiaba.mt.gov.br"
 DIRECTORY_INDEXES = (
     ("secretaria", f"{DIRECTORY_ROOT}/secretarias", "/secretarias/"),
     ("orgao", f"{DIRECTORY_ROOT}/orgaos", "/orgaos/"),
 )
+
+AGENCY_DIRECTORY_ALIASES: dict[str, tuple[str, ...]] = {
+    "educacao cultura esporte e lazer": ("educacao", "cultura", "esportes-e-lazer"),
+    "meio ambiente desenvolvimento e planejamento urbano": (
+        "meio-ambiente-e-desenvolvimento-urbano",
+        "planejamento-e-desenvolvimento-urbano",
+    ),
+    "turismo e desenvolvimento economico": (
+        "secretaria-municipal-de-desenvolvimento-economico-trabalho-turismo-e-agricultura",
+    ),
+    "mobilidade urbana": ("mobilidade-urbana-e-seguranca-publica",),
+    "agencia de fiscalizacao e regulacao dos servicos publicos delegados cuiaba regula": (
+        "cuiaba-regula",
+    ),
+}
 
 
 class AgencyDirectoryError(RuntimeError):
@@ -43,6 +58,25 @@ class AgencyDirectoryReport:
     saved: int
     failed: int
     cached: int
+
+
+def canonical_agency_name(value: object) -> str:
+    normalized = search_text(value)
+    return re.sub(r"^secretaria municipal (?:de |da |do )?", "", normalized)
+
+
+def directory_slugs_for(agency_name: object, directory: list[dict[str, object]]) -> tuple[str, ...]:
+    """Resolve nomes somente por igualdade canônica ou alias manual versionado."""
+    canonical = canonical_agency_name(agency_name)
+    aliases = AGENCY_DIRECTORY_ALIASES.get(canonical)
+    if aliases:
+        return aliases
+    exact = [
+        str(item["slug"])
+        for item in directory
+        if canonical_agency_name(item.get("agency_name")) == canonical
+    ]
+    return tuple(exact)
 
 
 class _DirectoryIndexParser(HTMLParser):
