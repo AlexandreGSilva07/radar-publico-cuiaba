@@ -69,6 +69,7 @@ def test_refresh_collects_all_sources_before_transforming(tmp_path: Path) -> Non
             analytics_path=tmp_path / "analytics.duckdb",
             enrichment_path=tmp_path / "enrichment.duckdb",
             enrichment_limit=0,
+            agency_directory_limit=0,
             geocoding_limit=0,
             cycle_id="integration-test",
             http=http,
@@ -77,3 +78,4 @@ def test_refresh_collects_all_sources_before_transforming(tmp_path: Path) -> Non
     assert [item.status for item in report.collections] == ["complete", "complete", "complete"]
     assert report.analytics.counts == {"contratos": 1, "licitacoes": 1, "despesas": 1}
     assert report.analytics.output_path.exists()
+    assert report.agency_directory is None

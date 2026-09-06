@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
 
+from radar_publico.agencies import AgencyDirectoryReport, enrich_agency_directory
 from radar_publico.collect import Report, collect
 from radar_publico.coverage import require_valid
 from radar_publico.enrich import (
@@ -26,6 +27,7 @@ class RefreshReport:
     collections: tuple[Report, ...]
     analytics: BuildReport
     enrichment: EnrichmentReport | None
+    agency_directory: AgencyDirectoryReport | None
     geocoding: GeocodingReport | None
 
 
@@ -37,12 +39,13 @@ def refresh(
     analytics_path: Path,
     enrichment_path: Path,
     enrichment_limit: int = 20,
+    agency_directory_limit: int = 50,
     geocoding_limit: int = 50,
     cycle_id: str | None = None,
     http: PublicClient | None = None,
 ) -> RefreshReport:
     """Executa a cadeia completa; transformação só ocorre após cobertura válida."""
-    if enrichment_limit < 0 or geocoding_limit < 0:
+    if enrichment_limit < 0 or agency_directory_limit < 0 or geocoding_limit < 0:
         raise ValueError("limites de enriquecimento não podem ser negativos")
     manifest = load_manifest()
     active_cycle = cycle_id or f"refresh-{year}-{uuid4()}"
@@ -79,6 +82,15 @@ def refresh(
             if enrichment_limit
             else None
         )
+        agency_directory = (
+            enrich_agency_directory(
+                cache_path=enrichment_path,
+                http=client,
+                limit=agency_directory_limit,
+            )
+            if agency_directory_limit
+            else None
+        )
         geocoding = (
             geocode_company_postal_codes(
                 cache_path=enrichment_path,
@@ -91,4 +103,11 @@ def refresh(
     finally:
         if owns_client:
             client.__exit__()
-    return RefreshReport(active_cycle, tuple(collections), analytics, enrichment, geocoding)
+    return RefreshReport(
+        active_cycle,
+        tuple(collections),
+        analytics,
+        enrichment,
+        agency_directory,
+        geocoding,
+    )

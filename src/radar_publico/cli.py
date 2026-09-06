@@ -286,6 +286,7 @@ def refresh_command(
     year: int = typer.Option(...),
     live: bool = typer.Option(False, help="Autoriza coleta e enriquecimento externos."),
     enrichment_limit: int = typer.Option(20, min=0),
+    agency_directory_limit: int = typer.Option(50, min=0),
     geocoding_limit: int = typer.Option(50, min=0),
     cycle_id: str | None = typer.Option(None),
     ops_path: Path = typer.Option(Path("data/ops.duckdb")),
@@ -305,6 +306,7 @@ def refresh_command(
             analytics_path=analytics_path,
             enrichment_path=enrichment_path,
             enrichment_limit=enrichment_limit,
+            agency_directory_limit=agency_directory_limit,
             geocoding_limit=geocoding_limit,
             cycle_id=cycle_id,
         )
@@ -326,6 +328,7 @@ def refresh_command(
         f"collections={{{collection_counts}}} "
         f"silver={report.analytics.counts} "
         f"enriched={report.enrichment.enriched if report.enrichment else 0} "
+        f"agencies={report.agency_directory.saved if report.agency_directory else 0} "
         f"geocoded={report.geocoding.geocoded if report.geocoding else 0}"
     )
 
