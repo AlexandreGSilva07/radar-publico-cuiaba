@@ -59,12 +59,14 @@ def test_collects_official_agency_address_and_contacts(tmp_path: Path) -> None:
     assert report.saved == 3
     connection = duckdb.connect(str(cache), read_only=True)
     assert connection.execute(
-        "SELECT agency_name, postal_code, phones_json, emails_json FROM agency_directory "
+        "SELECT agency_name, postal_code, phones_json, emails_json, address_scope "
+        "FROM agency_directory "
         "WHERE slug='governo'"
     ).fetchone() == (
         "Governo",
         "78005360",
         '["6533245903"]',
         '["governo@cuiaba.mt.gov.br"]',
+        "unit",
     )
     connection.close()

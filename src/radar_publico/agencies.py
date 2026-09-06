@@ -125,13 +125,20 @@ def parse_directory_index(html: str, kind: str, path_prefix: str) -> list[Agency
     return list(unique.values())
 
 
-def parse_agency_detail(html: str) -> tuple[str | None, str | None, list[str], list[str]]:
+def parse_agency_detail(
+    html: str,
+) -> tuple[str | None, str | None, list[str], list[str], str]:
     parser = _AgencyDetailParser()
     parser.feed(html)
     address = parser.address
+    address_scope = (
+        "municipal_headquarters"
+        if (address or "").casefold().startswith("razão social: município de cuiabá")
+        else "unit"
+    )
     match = re.search(r"\b(\d{5})[-.\s]?(\d{3})\b", address or "")
     postal_code = "".join(match.groups()) if match else None
-    return address, postal_code, parser.phones, parser.emails
+    return address, postal_code, parser.phones, parser.emails, address_scope
 
 
 def _now() -> datetime:
@@ -191,10 +198,10 @@ def enrich_agency_directory(
             try:
                 response = http.get_text(candidate.source_url)
                 body = response.content.decode("utf-8", errors="replace")
-                address, postal_code, phones, emails = parse_agency_detail(body)
+                address, postal_code, phones, emails, address_scope = parse_agency_detail(body)
                 slug = urlparse(candidate.source_url).path.rstrip("/").rsplit("/", 1)[-1]
                 connection.execute(
-                    "INSERT OR REPLACE INTO agency_directory VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT OR REPLACE INTO agency_directory VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                     [
                         candidate.source_url,
                         candidate.kind,
@@ -206,6 +213,7 @@ def enrich_agency_directory(
                         json.dumps(emails, ensure_ascii=False, separators=(",", ":")),
                         hashlib.sha256(response.content).hexdigest(),
                         _now(),
+                        address_scope,
                     ],
                 )
                 connection.execute(

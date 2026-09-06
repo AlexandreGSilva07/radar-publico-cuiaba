@@ -8,8 +8,11 @@ CREATE TABLE IF NOT EXISTS agency_directory(
   phones_json VARCHAR NOT NULL,
   emails_json VARCHAR NOT NULL,
   source_hash VARCHAR NOT NULL,
-  fetched_at TIMESTAMP NOT NULL
+  fetched_at TIMESTAMP NOT NULL,
+  address_scope VARCHAR
 );
+
+ALTER TABLE agency_directory ADD COLUMN IF NOT EXISTS address_scope VARCHAR;
 
 CREATE TABLE IF NOT EXISTS agency_directory_attempt(
   source_url VARCHAR NOT NULL,
