@@ -338,6 +338,11 @@ class AnalyticsDatabase:
                     item["longitude"] is not None and item["latitude"] is not None
                     for item in directory
                 ),
+                "official_location_count": sum(
+                    item["geocode_accuracy"] == "official_point" for item in directory
+                ),
+                "phone_unit_count": sum(bool(item["phones"]) for item in directory),
+                "email_unit_count": sum(bool(item["emails"]) for item in directory),
             },
             "items": items,
         }

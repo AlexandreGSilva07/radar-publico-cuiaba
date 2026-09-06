@@ -243,6 +243,8 @@ def test_agency_intelligence_connects_exact_official_directory(tmp_path: Path) -
     data = response.json()
     assert data["coverage"]["agency_count"] == 1
     assert data["coverage"]["matched_agency_count"] == 1
+    assert data["coverage"]["phone_unit_count"] == 1
+    assert data["coverage"]["official_location_count"] == 0
     location = data["items"][0]["locations"][0]
     assert location["agency_name"] == "Secretaria Teste"
     assert location["phones"] == ["6533334444"]
