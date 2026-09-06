@@ -155,8 +155,17 @@ def enrich_agency_directory(
             response = http.get_text(index_url)
         except HttpError as exc:
             raise AgencyDirectoryError(f"índice oficial indisponível: {kind}") from exc
-        parsed = parse_directory_index(str(response.payload), kind, path_prefix)
-        candidates.update({item.source_url: item for item in parsed})
+        pages = {index_url: str(response.payload)}
+        page_pattern = rf'href=["\']({re.escape(path_prefix.rstrip("/"))}\?p=\d+)["\']'
+        for href in sorted(set(re.findall(page_pattern, str(response.payload)))):
+            page_url = urljoin(DIRECTORY_ROOT, href)
+            try:
+                pages[page_url] = str(http.get_text(page_url).payload)
+            except HttpError as exc:
+                raise AgencyDirectoryError(f"paginação oficial indisponível: {kind}") from exc
+        for page_html in pages.values():
+            parsed = parse_directory_index(page_html, kind, path_prefix)
+            candidates.update({item.source_url: item for item in parsed})
     if not candidates:
         raise AgencyDirectoryError("diretório oficial sem unidades reconhecíveis")
 
