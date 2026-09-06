@@ -119,37 +119,107 @@ class _DirectoryIndexParser(HTMLParser):
 class _AgencyDetailParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
+        self.div_depth = 0
+        self.contact_scope_depth: int | None = None
+        self.saw_contact_scope = False
         self.capture_address = False
         self.address_parts: list[str] = []
-        self.phones: list[str] = []
-        self.emails: list[str] = []
+        self.addresses: list[tuple[str, bool]] = []
+        self.link_kind: str | None = None
+        self.link_value = ""
+        self.link_parts: list[str] = []
+        self.link_in_scope = False
+        self.all_phones: list[str] = []
+        self.scoped_phones: list[str] = []
+        self.all_emails: list[str] = []
+        self.scoped_emails: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attributes = dict(attrs)
-        if tag == "address" and not self.address_parts:
+        if tag == "div":
+            self.div_depth += 1
+            classes = (attributes.get("class") or "").split()
+            if "component-sidebar" in classes and self.contact_scope_depth is None:
+                self.contact_scope_depth = self.div_depth
+                self.saw_contact_scope = True
+        if tag == "address":
             self.capture_address = True
+            self.address_parts = []
         if tag == "a":
             href = attributes.get("href") or ""
             if href.startswith("tel:"):
-                value = "".join(character for character in href[4:] if character.isdigit())
-                if value and value not in self.phones:
-                    self.phones.append(value)
+                self.link_kind = "phone"
+                self.link_value = href[4:]
+                self.link_parts = []
+                self.link_in_scope = self.contact_scope_depth is not None
             elif href.startswith("mailto:"):
-                value = href[7:].split("?", 1)[0].strip().casefold()
-                if "@" in value and value not in self.emails:
-                    self.emails.append(value)
+                self.link_kind = "email"
+                self.link_value = href[7:].split("?", 1)[0].strip().casefold()
+                self.link_parts = []
+                self.link_in_scope = self.contact_scope_depth is not None
 
     def handle_data(self, data: str) -> None:
         if self.capture_address:
             self.address_parts.append(data)
+        if self.link_kind:
+            self.link_parts.append(data)
 
     def handle_endtag(self, tag: str) -> None:
         if tag == "address" and self.capture_address:
+            address = text(" ".join(self.address_parts))
+            if address:
+                self.addresses.append((address, self.contact_scope_depth is not None))
             self.capture_address = False
+            self.address_parts = []
+        if tag == "a" and self.link_kind:
+            if self.link_kind == "phone":
+                label = " ".join(self.link_parts)
+                values = _phone_numbers(label) or _phone_numbers(self.link_value)
+                target = self.scoped_phones if self.link_in_scope else self.all_phones
+                for value in values:
+                    if value not in target:
+                        target.append(value)
+            else:
+                target = self.scoped_emails if self.link_in_scope else self.all_emails
+                if "@" in self.link_value and self.link_value not in target:
+                    target.append(self.link_value)
+            self.link_kind = None
+            self.link_value = ""
+            self.link_parts = []
+        if tag == "div":
+            if self.contact_scope_depth == self.div_depth:
+                self.contact_scope_depth = None
+            self.div_depth = max(0, self.div_depth - 1)
 
     @property
     def address(self) -> str | None:
-        return text(" ".join(self.address_parts))
+        scoped = [value for value, in_scope in self.addresses if in_scope]
+        fallback = [value for value, _ in self.addresses]
+        return (scoped or fallback or [None])[0]
+
+    @property
+    def phones(self) -> list[str]:
+        return self.scoped_phones if self.saw_contact_scope else self.all_phones
+
+    @property
+    def emails(self) -> list[str]:
+        return self.scoped_emails if self.saw_contact_scope else self.all_emails
+
+
+def _phone_numbers(value: str) -> list[str]:
+    """Normaliza telefone brasileiro e expande sufixos como 3324-5903/5904."""
+    pattern = re.compile(
+        r"(?<!\d)(?:\+?55\s*)?\(?([1-9]\d)\)?[\s.-]*"
+        r"(\d{4,5})[\s.-]*(\d{4})(?!\d)"
+    )
+    numbers = ["".join(match.groups()) for match in pattern.finditer(value)]
+    if numbers:
+        first = numbers[0]
+        for suffix in re.findall(r"/\s*(\d{4})(?!\d)", value):
+            expanded = first[:6] + suffix
+            if expanded not in numbers:
+                numbers.append(expanded)
+    return numbers
 
 
 def parse_directory_index(html: str, kind: str, path_prefix: str) -> list[AgencyDirectoryCandidate]:

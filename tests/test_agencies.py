@@ -34,9 +34,15 @@ def test_collects_official_agency_address_and_contacts(tmp_path: Path) -> None:
       </a>
     """
     detail = """
-      <a href="tel:6533245903" class="phone">Recepção (65) 3324-5903</a>
-      <a href="mailto:governo@cuiaba.mt.gov.br" class="email">E-mail</a>
-      <address>Praça Alencastro, 158, Centro, Cuiabá-MT - 78005-360</address>
+      <div class="component-sidebar">
+        <a href="tel:65332459035904" class="phone">Recepção (65) 3324-5903/5904</a>
+        <a href="mailto:governo@cuiaba.mt.gov.br" class="email">E-mail</a>
+        <address>Praça Alencastro, 158, Centro, Cuiabá-MT - 78005-360</address>
+      </div>
+      <footer>
+        <a href="tel:6533245611">Telefone geral</a>
+        <address>Praça do rodapé, 1 - 78005-906</address>
+      </footer>
     """
     respx.get(re.compile(rf"{re.escape(DIRECTORY_ROOT)}/secretarias$")).mock(
         return_value=httpx.Response(200, text=secretariats)
@@ -69,7 +75,7 @@ def test_collects_official_agency_address_and_contacts(tmp_path: Path) -> None:
     ).fetchone() == (
         "Governo",
         "78005360",
-        '["6533245903"]',
+        '["6533245903","6533245904"]',
         '["governo@cuiaba.mt.gov.br"]',
         "unit",
     )
